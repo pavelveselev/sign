@@ -35,14 +35,25 @@ public sealed class StageDefinition
 
     public bool IsConditional => Condition is not null;
 
-    /// <summary>
-    /// Evaluates the entry condition against document attributes.
-    /// Exceptions from the condition (e.g. <see cref="DocumentAttributeException"/>) propagate to the caller.
-    /// </summary>
+    /// <summary>Evaluates the entry condition against document attributes.</summary>
+    /// <exception cref="StageConditionException">The condition threw; the original exception is inner.</exception>
     public bool AppliesTo(DocumentContext document)
     {
         ArgumentNullException.ThrowIfNull(document);
-        return Condition is null || Condition(document);
+
+        if (Condition is null)
+        {
+            return true;
+        }
+
+        try
+        {
+            return Condition(document);
+        }
+        catch (Exception ex)
+        {
+            throw new StageConditionException(Key, ex);
+        }
     }
 
     public override string ToString() => Key;

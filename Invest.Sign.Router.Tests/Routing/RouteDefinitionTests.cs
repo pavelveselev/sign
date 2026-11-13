@@ -38,9 +38,21 @@ public class RouteDefinitionTests
     }
 
     [Fact]
-    public void Condition_errors_propagate()
+    public void Condition_errors_are_wrapped_with_stage_key()
     {
-        Assert.Throws<DocumentAttributeException>(() => Route3.NextStage("a", Doc("{}")));
+        var ex = Assert.Throws<StageConditionException>(() => Route3.NextStage("a", Doc("{}")));
+
+        Assert.Equal("b", ex.StageKey);
+        Assert.IsType<DocumentAttributeException>(ex.InnerException);
+    }
+
+    [Fact]
+    public void Selection_reports_skipped_stages()
+    {
+        var selection = Route3.SelectNextStage("a", Doc("""{"needs-b": false}"""));
+
+        Assert.Equal("c", selection.Next?.Key);
+        Assert.Equal("b", Assert.Single(selection.Skipped).Key);
     }
 
     [Fact]

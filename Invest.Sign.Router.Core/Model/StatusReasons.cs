@@ -14,4 +14,10 @@ public static class StatusReasons
 
     /// <summary>Technical failures exceeded the configured number of attempts.</summary>
     public const string AttemptsExhausted = "ATTEMPTS_EXHAUSTED";
+
+    /// <summary>A stage entry condition threw, e.g. a required attribute is missing or malformed. Not retried.</summary>
+    public const string ConditionError = "CONDITION_ERROR";
+
+    /// <summary>The signing software reported <c>ERROR</c> for a request. Details are in the stage reason.</summary>
+    public const string SigningError = "SIGNING_ERROR";
 }

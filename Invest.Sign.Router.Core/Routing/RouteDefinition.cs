@@ -34,7 +34,16 @@ public sealed class RouteDefinition
     /// whose condition holds for the document. Null means the route is complete.
     /// </summary>
     /// <exception cref="ArgumentException">The current stage key is not part of this route.</exception>
-    public StageDefinition? NextStage(string? currentStageKey, DocumentContext document)
+    /// <exception cref="StageConditionException">A stage condition threw.</exception>
+    public StageDefinition? NextStage(string? currentStageKey, DocumentContext document) =>
+        SelectNextStage(currentStageKey, document).Next;
+
+    /// <summary>
+    /// Like <see cref="NextStage"/>, but also returns the stages skipped because their condition did not hold.
+    /// </summary>
+    /// <exception cref="ArgumentException">The current stage key is not part of this route.</exception>
+    /// <exception cref="StageConditionException">A stage condition threw.</exception>
+    public StageSelection SelectNextStage(string? currentStageKey, DocumentContext document)
     {
         ArgumentNullException.ThrowIfNull(document);
 
@@ -50,19 +59,25 @@ public sealed class RouteDefinition
             start = currentIndex + 1;
         }
 
+        var skipped = new List<StageDefinition>();
         for (var i = start; i < Stages.Count; i++)
         {
             if (Stages[i].AppliesTo(document))
             {
-                return Stages[i];
+                return new StageSelection(Stages[i], skipped);
             }
+
+            skipped.Add(Stages[i]);
         }
 
-        return null;
+        return new StageSelection(null, skipped);
     }
 
     public override string ToString() => Key.ToString();
 }
+
+/// <summary>Result of selecting the next stage: the stage to enter (null = route complete) and the skipped ones.</summary>
+public sealed record StageSelection(StageDefinition? Next, IReadOnlyList<StageDefinition> Skipped);
 
 /// <summary>Registry key of a route.</summary>
 public readonly record struct RouteKey(string Code, int Version)
