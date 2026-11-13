@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="Invest.Sign.Router.IntegrationTests/Invest.Sign.Router.IntegrationTests.csproj" />
+    <Project Path="Invest.Sign.Router.Tests/Invest.Sign.Router.Tests.csproj" />
+  </Folder>
+  <Project Path="Invest.Sign.Router.Core/Invest.Sign.Router.Core.csproj" />
+  <Project Path="Invest.Sign.Router.Infrastructure/Invest.Sign.Router.Infrastructure.csproj" />
+  <Project Path="Invest.Sign.Router/Invest.Sign.Router.csproj" />
+</Solution>
