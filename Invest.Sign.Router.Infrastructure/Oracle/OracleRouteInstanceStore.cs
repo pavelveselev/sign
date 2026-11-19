@@ -4,7 +4,7 @@ using Oracle.ManagedDataAccess.Client;
 
 namespace Invest.Sign.Router.Infrastructure.Oracle;
 
-/// <summary><see cref="IRouteInstanceStore"/> over the <c>SGN_*</c> tables (db/service).</summary>
+/// <summary><see cref="IRouteInstanceStore"/> поверх таблиц <c>SGN_*</c> (db/service).</summary>
 internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteInstanceStore
 {
     private const int UniqueConstraintViolated = 1;
@@ -40,7 +40,7 @@ internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteIn
         reason                        AS Reason
         """;
 
-    /// <summary>Must match the column size of <c>sgn_stage_instance.reason</c>.</summary>
+    /// <summary>Должно совпадать с размером столбца <c>sgn_stage_instance.reason</c>.</summary>
     private const int MaxReasonLength = 2000;
 
     public async Task<DateTimeOffset> GetNowAsync(CancellationToken cancellationToken)
@@ -79,7 +79,7 @@ internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteIn
         }
         catch (OracleException ex) when (ex.Number == UniqueConstraintViolated)
         {
-            // Only the statement is rolled back; the transaction stays usable.
+            // Откатывается только оператор; транзакция остаётся пригодной к использованию.
             return null;
         }
 

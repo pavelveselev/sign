@@ -9,7 +9,7 @@ using Oracle.ManagedDataAccess.Client;
 
 namespace Invest.Sign.Router.IntegrationTests;
 
-/// <summary>Stage 2 scenarios 1, 3, 4, 8, 9, 10 on real Oracle with the stub external side.</summary>
+/// <summary>Сценарии 1, 3, 4, 8, 9, 10 этапа 2 на реальном Oracle с заглушкой внешней стороны.</summary>
 [Collection(OracleCollection.Name)]
 public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
 {
@@ -28,7 +28,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
 
     public Task DisposeAsync() => Task.CompletedTask;
 
-    // ---- 1. A multi-stage route reaches COMPLETED. ----
+    // ---- 1. Многоэтапный маршрут доходит до COMPLETED. ----
 
     [OracleFact]
     public async Task S01_multi_stage_route_completes()
@@ -38,16 +38,16 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
 
         foreach (var (stageKey, file) in new[] { ("a", "out/a.pdf"), ("b", "out/b.pdf") })
         {
-            await StepAdvancedAsync(engine, id);   // enter
-            await StepAdvancedAsync(engine, id);   // request
+            await StepAdvancedAsync(engine, id);   // вход
+            await StepAdvancedAsync(engine, id);   // запрос
             var requestId = await CurrentRequestIdAsync(id, stageKey);
             var content = Encoding.UTF8.GetBytes($"signed {stageKey}");
             _files.Files[file] = content;
             await SignAsync(requestId, file, Convert.ToHexString(SHA256.HashData(content)), content.Length);
-            await StepAdvancedAsync(engine, id);   // done
+            await StepAdvancedAsync(engine, id);   // готово
         }
 
-        await StepAdvancedAsync(engine, id);       // complete
+        await StepAdvancedAsync(engine, id);       // завершение
 
         Assert.Equal("COMPLETED", await RouteStatusAsync(id));
         Assert.Equal(["DONE", "DONE"], await db.QueryServiceAsync<string>(
@@ -66,7 +66,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
             await AuditTypesAsync(id));
     }
 
-    // ---- 3. Rejection completes the route as REJECTED. ----
+    // ---- 3. Отклонение завершает маршрут со статусом REJECTED. ----
 
     [OracleFact]
     public async Task S03_rejection_rejects_route()
@@ -87,7 +87,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
             "SELECT state, reason FROM sgn_stage_instance WHERE route_instance_id = :id", new { id })));
     }
 
-    // ---- 4. Timeout expires the route and cancels the request. ----
+    // ---- 4. Истечение срока завершает маршрут и отменяет запрос. ----
 
     [OracleFact]
     public async Task S04_timeout_expires_route_and_cancels_request()
@@ -98,7 +98,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
         await StepAdvancedAsync(engine, id);
         var requestId = await CurrentRequestIdAsync(id, "a");
 
-        // Move the deadline into the past instead of waiting a day.
+        // Переносим срок в прошлое вместо ожидания в течение дня.
         await db.ExecuteServiceAsync(
             "UPDATE sgn_stage_instance SET deadline_at = SYSTIMESTAMP - INTERVAL '1' SECOND WHERE request_id = :requestId",
             new { requestId });
@@ -111,7 +111,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
             "SELECT status, status_reason FROM stub_sign_request")));
     }
 
-    // ---- 8. A lost lease leaves no changes. ----
+    // ---- 8. Потерянная аренда не оставляет изменений. ----
 
     [OracleFact]
     public async Task S08_lease_lost_when_entering_stage_leaves_no_changes()
@@ -145,7 +145,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
         Assert.Equal("PENDING", Assert.Single(await db.QueryServiceAsync<string>("SELECT state FROM sgn_stage_instance")));
     }
 
-    // ---- 9. Re-running a PENDING step does not create a second request. ----
+    // ---- 9. Повторный запуск шага PENDING не создаёт второй запрос. ----
 
     [OracleFact]
     public async Task S09_retried_start_does_not_create_second_request()
@@ -155,7 +155,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
         await StepAdvancedAsync(engine, id);
         var requestId = await CurrentRequestIdAsync(id, "a");
 
-        // Fail after create_sign_request inside the same transaction.
+        // Ошибка после create_sign_request внутри той же транзакции.
         _unitOfWork.Before = op =>
         {
             if (op != InterceptingUnitOfWorkFactory.UpdateStage)
@@ -193,7 +193,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
         Assert.Single(await db.QueryExternalAsync<string>("SELECT request_id FROM stub_sign_request"));
     }
 
-    // ---- 10. A document discovered by two replicas is created once. ----
+    // ---- 10. Документ, обнаруженный двумя репликами, создаётся один раз. ----
 
     [OracleFact]
     public async Task S10_documents_discovered_by_two_replicas_concurrently_are_created_once()
@@ -230,8 +230,8 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
 
         var ticks = await Task.WhenAll(Task.Run(() => a.TickAsync(default)), Task.Run(() => b.TickAsync(default)));
 
-        // A replica may take an instance right after the other released it (the capture does not check
-        // next_attempt_at), which only advances it one more step; it must never fail or double-enter a stage.
+        // Реплика может захватить экземпляр сразу после того, как другая его освободила (захват не проверяет
+        // next_attempt_at), что лишь продвигает его ещё на один шаг; это никогда не должно приводить к ошибке или двойному входу в этап.
         var steps = ticks.SelectMany(t => t.Steps).ToList();
         Assert.All(steps, s => Assert.Contains(s.Outcome, new[] { StepOutcome.Advanced, StepOutcome.NotAcquired }));
         Assert.Equal(10, steps.Where(s => s.Outcome == StepOutcome.Advanced).Select(s => s.RouteId).Distinct().Count());
@@ -284,7 +284,7 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
         await db.QueryServiceAsync<string>(
             "SELECT event_type FROM sgn_audit_event WHERE route_instance_id = :id ORDER BY id", new { id });
 
-    /// <summary>Before the step's fenced write, another replica takes over the lease and commits.</summary>
+    /// <summary>Перед защищённой записью шага другая реплика перехватывает аренду и фиксирует транзакцию.</summary>
     private void StealLeaseBeforeNextWrite(long id) =>
         _unitOfWork.Before = async op =>
         {

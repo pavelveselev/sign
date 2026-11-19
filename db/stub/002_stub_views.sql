@@ -1,4 +1,4 @@
--- Contract views over the stub tables. Column names and types follow db/contract/README.md.
+-- Представления контракта поверх таблиц заглушки. Имена и типы столбцов соответствуют db/contract/README.md.
 
 CREATE OR REPLACE VIEW sign_incoming_document_v AS
 SELECT doc_id,

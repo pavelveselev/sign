@@ -5,8 +5,8 @@ using Oracle.ManagedDataAccess.Client;
 namespace Invest.Sign.Router.Infrastructure.Oracle;
 
 /// <summary>
-/// Reads new documents from the external incoming documents view: rows without a route instance (anti-join),
-/// oldest first.
+/// Читает новые документы из внешнего представления входящих документов: строки без экземпляра маршрута (анти-соединение),
+/// начиная с самых старых.
 /// </summary>
 public sealed class OracleIncomingDocumentSource : IIncomingDocumentSource
 {

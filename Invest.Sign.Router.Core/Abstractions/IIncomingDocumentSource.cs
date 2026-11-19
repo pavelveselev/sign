@@ -1,16 +1,16 @@
 namespace Invest.Sign.Router.Core.Abstractions;
 
-/// <summary>Source of new documents (open question 2: a view of incoming documents in the external schema).</summary>
+/// <summary>Источник новых документов (открытый вопрос 2: представление входящих документов во внешней схеме).</summary>
 public interface IIncomingDocumentSource
 {
     /// <summary>
-    /// Returns documents that have no route instance yet, oldest first, at most <paramref name="limit"/>.
-    /// Another replica may insert the same document concurrently; the engine handles that.
+    /// Возвращает документы, у которых ещё нет экземпляра маршрута, начиная с самых старых, не более <paramref name="limit"/>.
+    /// Другая реплика может одновременно вставить тот же документ; движок это обрабатывает.
     /// </summary>
     Task<IReadOnlyList<IncomingDocument>> GetNewAsync(int limit, CancellationToken cancellationToken);
 }
 
-/// <summary>A row of the incoming documents view. Rows never change or disappear.</summary>
+/// <summary>Строка представления входящих документов. Строки никогда не меняются и не исчезают.</summary>
 public sealed record IncomingDocument(
     string DocId,
     string DocType,

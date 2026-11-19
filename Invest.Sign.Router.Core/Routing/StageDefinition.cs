@@ -2,7 +2,7 @@ using Invest.Sign.Router.Core.Model;
 
 namespace Invest.Sign.Router.Core.Routing;
 
-/// <summary>An immutable, validated stage of a route definition.</summary>
+/// <summary>Неизменяемый проверенный этап определения маршрута.</summary>
 public sealed class StageDefinition
 {
     internal StageDefinition(
@@ -19,24 +19,24 @@ public sealed class StageDefinition
         Condition = condition;
     }
 
-    /// <summary>Stage key, unique within the route. Stored in <c>stage_key</c>.</summary>
+    /// <summary>Ключ этапа, уникальный в пределах маршрута. Хранится в <c>stage_key</c>.</summary>
     public string Key { get; }
 
     public SigningKind Kind { get; }
 
-    /// <summary>Signer identifier passed to the signing software as <c>p_signer</c>.</summary>
+    /// <summary>Идентификатор подписанта, передаваемый в ПО подписания как <c>p_signer</c>.</summary>
     public string Signer { get; }
 
-    /// <summary>Time allowed for the signing request, counted from the moment it is created.</summary>
+    /// <summary>Время, отведённое на запрос на подписание, отсчитываемое с момента его создания.</summary>
     public TimeSpan Timeout { get; }
 
-    /// <summary>Entry condition, null means the stage always applies.</summary>
+    /// <summary>Условие входа; null означает, что этап применяется всегда.</summary>
     public Func<DocumentContext, bool>? Condition { get; }
 
     public bool IsConditional => Condition is not null;
 
-    /// <summary>Evaluates the entry condition against document attributes.</summary>
-    /// <exception cref="StageConditionException">The condition threw; the original exception is inner.</exception>
+    /// <summary>Вычисляет условие входа по атрибутам документа.</summary>
+    /// <exception cref="StageConditionException">Условие выбросило исключение; исходное исключение — внутреннее.</exception>
     public bool AppliesTo(DocumentContext document)
     {
         ArgumentNullException.ThrowIfNull(document);

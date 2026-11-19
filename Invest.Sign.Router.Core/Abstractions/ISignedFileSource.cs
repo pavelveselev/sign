@@ -1,11 +1,11 @@
 namespace Invest.Sign.Router.Core.Abstractions;
 
-/// <summary>Reads signed files placed by the signing software (open question 8: access method not chosen).</summary>
+/// <summary>Читает подписанные файлы, размещённые ПО подписания (открытый вопрос 8: способ доступа не выбран).</summary>
 public interface ISignedFileSource
 {
     /// <summary>
-    /// Reads the whole file. Any exception (file missing, locked, share unavailable) is a technical
-    /// failure and is retried by the engine.
+    /// Читает файл целиком. Любое исключение (файл отсутствует, заблокирован, общий ресурс недоступен) является технической
+    /// ошибкой и повторяется движком.
     /// </summary>
     Task<byte[]> ReadAsync(string fileRef, CancellationToken cancellationToken);
 }

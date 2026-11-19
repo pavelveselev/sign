@@ -5,7 +5,7 @@ using Invest.Sign.Router.IntegrationTests.Infrastructure;
 
 namespace Invest.Sign.Router.IntegrationTests;
 
-/// <summary>Oracle implementations of the store, gateway and incoming source, tested directly.</summary>
+/// <summary>Реализации хранилища, шлюза и источника входящих документов для Oracle, протестированные напрямую.</summary>
 [Collection(OracleCollection.Name)]
 public sealed class OracleStoreTests(OracleFixture db) : IAsyncLifetime
 {
@@ -98,14 +98,14 @@ public sealed class OracleStoreTests(OracleFixture db) : IAsyncLifetime
 
         Assert.True(await first.Store.TryAcquireAsync(id, "replica-a", Lease, default));
 
-        // The second UPDATE waits on the row lock held by the first transaction.
+        // Второй UPDATE ждёт блокировки строки, удерживаемой первой транзакцией.
         var secondCapture = second.Store.TryAcquireAsync(id, "replica-b", Lease, default);
         await Task.Delay(BlockedWait);
         Assert.False(secondCapture.IsCompleted);
 
         await first.CommitAsync(default);
 
-        // After the first commit Oracle re-evaluates the WHERE clause: the lease is now taken.
+        // После первой фиксации Oracle заново вычисляет условие WHERE: аренда уже занята.
         Assert.False(await secondCapture);
         await second.CommitAsync(default);
 
@@ -205,7 +205,7 @@ public sealed class OracleStoreTests(OracleFixture db) : IAsyncLifetime
             Assert.Equal(now.AddDays(1), stage.DeadlineAt);
             Assert.Equal(2000, stage.Reason!.Length);
 
-            // Disposed without commit: everything above must roll back.
+            // Освобождено без фиксации: всё вышеперечисленное должно откатиться.
         }
 
         Assert.Empty(await db.QueryServiceAsync<long>("SELECT id FROM sgn_stage_instance"));
@@ -260,7 +260,7 @@ public sealed class OracleStoreTests(OracleFixture db) : IAsyncLifetime
             Assert.Equal(("out/a.pdf", "ABC", 42L), (result.FileRef, result.FileHash, result.FileSize));
             Assert.NotNull(result.SignedAt);
 
-            // Cancel of a final request is a no-op.
+            // Отмена запроса в финальном статусе ничего не делает.
             await uow.Gateway.CancelRequestAsync("req-1", default);
             await uow.Gateway.CancelRequestAsync("unknown", default);
             Assert.Equal(SignRequestStatus.Signed, (await uow.Gateway.GetRequestAsync("req-1", default))!.Status);

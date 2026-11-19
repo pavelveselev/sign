@@ -1,23 +1,23 @@
 namespace Invest.Sign.Router.Core.Abstractions;
 
 /// <summary>
-/// Executes a stage against the signing software. Automatic and manual signing look the same to the
-/// service (open question 5) and differ only by <see cref="SignRequest.Kind"/>.
-/// The gateway passed in belongs to the current unit of work.
+/// Выполняет этап в ПО подписания. Автоматическое и ручное подписание для сервиса выглядят одинаково
+/// (открытый вопрос 5) и различаются только значением <see cref="SignRequest.Kind"/>.
+/// Переданный шлюз принадлежит текущей единице работы.
 /// </summary>
 public interface IStageHandler
 {
-    /// <summary>Creates the signing request. Must be idempotent by request id.</summary>
+    /// <summary>Создаёт запрос на подписание. Должен быть идемпотентен по идентификатору запроса.</summary>
     Task StartAsync(ISigningGateway gateway, SignRequest request, CancellationToken cancellationToken);
 
-    /// <summary>Returns the current result of the request.</summary>
+    /// <summary>Возвращает текущий результат запроса.</summary>
     Task<SignRequestResult> CheckAsync(ISigningGateway gateway, string requestId, CancellationToken cancellationToken);
 
-    /// <summary>Cancels the request after the stage deadline.</summary>
+    /// <summary>Отменяет запрос после истечения срока этапа.</summary>
     Task CancelAsync(ISigningGateway gateway, string requestId, CancellationToken cancellationToken);
 }
 
-/// <summary>Default handler: a direct mapping onto the signing gateway.</summary>
+/// <summary>Обработчик по умолчанию: прямое отображение на шлюз подписания.</summary>
 public sealed class SigningStageHandler : IStageHandler
 {
     public Task StartAsync(ISigningGateway gateway, SignRequest request, CancellationToken cancellationToken) =>
@@ -26,8 +26,8 @@ public sealed class SigningStageHandler : IStageHandler
     public async Task<SignRequestResult> CheckAsync(
         ISigningGateway gateway, string requestId, CancellationToken cancellationToken)
     {
-        // The contract guarantees the row exists right after create_sign_request.
-        // Its absence is treated as a technical failure and retried.
+        // Контракт гарантирует, что строка существует сразу после create_sign_request.
+        // Её отсутствие считается технической ошибкой и повторяется.
         return await gateway.GetRequestAsync(requestId, cancellationToken)
             ?? throw new InvalidOperationException($"Sign request '{requestId}' is not found in the signing software.");
     }

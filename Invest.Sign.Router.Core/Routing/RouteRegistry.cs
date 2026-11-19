@@ -1,17 +1,17 @@
 namespace Invest.Sign.Router.Core.Routing;
 
 /// <summary>
-/// Registry of route definitions keyed by (code, version).
-/// New documents get the highest version of the route for their type; started documents
-/// keep the version fixed on the instance, so old versions must stay registered while
-/// documents on them are active.
+/// Реестр определений маршрутов с ключом (код, версия).
+/// Новые документы получают наибольшую версию маршрута для своего типа; запущенные документы
+/// сохраняют версию, зафиксированную в экземпляре, поэтому старые версии должны оставаться зарегистрированными, пока
+/// по ним есть активные документы.
 /// </summary>
 public sealed class RouteRegistry
 {
     private readonly Dictionary<RouteKey, RouteDefinition> _byKey;
     private readonly Dictionary<string, RouteDefinition> _latestByCode;
 
-    /// <exception cref="RouteDefinitionException">The same (code, version) is registered more than once.</exception>
+    /// <exception cref="RouteDefinitionException">Одна и та же пара (код, версия) зарегистрирована более одного раза.</exception>
     public RouteRegistry(IEnumerable<RouteDefinition> routes)
     {
         ArgumentNullException.ThrowIfNull(routes);
@@ -35,14 +35,14 @@ public sealed class RouteRegistry
 
     public IReadOnlyCollection<RouteDefinition> All => _byKey.Values;
 
-    /// <summary>Route for a document type that is about to start. Null when the type has no route.</summary>
+    /// <summary>Маршрут для типа документа, который собирается стартовать. Null, если у типа нет маршрута.</summary>
     public RouteDefinition? FindLatest(string docType)
     {
         ArgumentNullException.ThrowIfNull(docType);
         return _latestByCode.GetValueOrDefault(docType);
     }
 
-    /// <summary>Exact route version fixed on an instance. Null when that version is not registered.</summary>
+    /// <summary>Точная версия маршрута, зафиксированная в экземпляре. Null, если эта версия не зарегистрирована.</summary>
     public RouteDefinition? Find(string code, int version)
     {
         ArgumentNullException.ThrowIfNull(code);

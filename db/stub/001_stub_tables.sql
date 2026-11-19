@@ -1,6 +1,6 @@
--- STUB of the external side (see db/contract/README.md). For development and tests only.
--- Run as the external schema owner. Tables are an implementation detail of the stub:
--- the service never touches them, tests do (INSERT incoming documents, UPDATE request results).
+-- ЗАГЛУШКА внешней стороны (см. db/contract/README.md). Только для разработки и тестов.
+-- Выполнять от имени владельца внешней схемы. Таблицы — деталь реализации заглушки:
+-- сервис их никогда не трогает, тесты трогают (INSERT входящих документов, UPDATE результатов запросов).
 
 CREATE TABLE stub_incoming_document (
     doc_id        VARCHAR2(200 CHAR)       NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE stub_sign_request (
     CONSTRAINT stub_sign_request_status_ck CHECK (status IN ('PENDING', 'SIGNED', 'REJECTED', 'ERROR'))
 );
 
--- Enforces "a final status never changes" so tests cannot set up states the real side never produces.
+-- Обеспечивает правило «финальный статус никогда не меняется», чтобы тесты не могли создать состояния, которых реальная сторона не порождает.
 CREATE OR REPLACE TRIGGER stub_sign_request_final_trg
 BEFORE UPDATE OF status ON stub_sign_request
 FOR EACH ROW

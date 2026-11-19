@@ -1,23 +1,23 @@
 namespace Invest.Sign.Router.Core.Model;
 
-/// <summary>Reason codes stored in <c>status_reason</c> for terminal route statuses set by the service itself.</summary>
+/// <summary>Коды причин в <c>status_reason</c> для терминальных статусов маршрута, устанавливаемых самим сервисом.</summary>
 public static class StatusReasons
 {
-    /// <summary>No route is registered for the document type.</summary>
+    /// <summary>Для типа документа не зарегистрирован маршрут.</summary>
     public const string UnknownDocType = "UNKNOWN_DOC_TYPE";
 
-    /// <summary>The route version fixed on the instance is no longer in the registry.</summary>
+    /// <summary>Версия маршрута, зафиксированная в экземпляре, больше отсутствует в реестре.</summary>
     public const string RouteNotFound = "ROUTE_NOT_FOUND";
 
-    /// <summary>Signed file hash or size does not match the values reported by the signing software.</summary>
+    /// <summary>Хеш или размер подписанного файла не совпадает со значениями, сообщёнными ПО подписания.</summary>
     public const string ArtifactMismatch = "ARTIFACT_MISMATCH";
 
-    /// <summary>Technical failures exceeded the configured number of attempts.</summary>
+    /// <summary>Технические ошибки превысили настроенное число попыток.</summary>
     public const string AttemptsExhausted = "ATTEMPTS_EXHAUSTED";
 
-    /// <summary>A stage entry condition threw, e.g. a required attribute is missing or malformed. Not retried.</summary>
+    /// <summary>Условие входа в этап выбросило исключение, например обязательный атрибут отсутствует или некорректен. Не повторяется.</summary>
     public const string ConditionError = "CONDITION_ERROR";
 
-    /// <summary>The signing software reported <c>ERROR</c> for a request. Details are in the stage reason.</summary>
+    /// <summary>ПО подписания сообщило <c>ERROR</c> по запросу. Подробности — в причине этапа.</summary>
     public const string SigningError = "SIGNING_ERROR";
 }

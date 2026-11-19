@@ -1,12 +1,12 @@
--- SGN_ROUTE_INSTANCE: one route instance per external document.
--- Run as the service schema owner. Oracle 19c or newer.
+-- SGN_ROUTE_INSTANCE: один экземпляр маршрута на внешний документ.
+-- Выполнять от имени владельца схемы сервиса. Oracle 19c или новее.
 
 CREATE TABLE sgn_route_instance (
     id                NUMBER(19)                  GENERATED ALWAYS AS IDENTITY,
     external_doc_id   VARCHAR2(200 CHAR)          NOT NULL,
     doc_type          VARCHAR2(100 CHAR)          NOT NULL,
-    -- Copied from the incoming documents view as is. Deliberately no IS JSON constraint:
-    -- a malformed value must not block discovery; the engine fails such a route with CONDITION_ERROR.
+    -- Копируется из представления входящих документов как есть. Ограничение IS JSON намеренно отсутствует:
+    -- некорректное значение не должно блокировать обнаружение; движок завершает такой маршрут с CONDITION_ERROR.
     attributes        CLOB,
     content_hash      VARCHAR2(200 CHAR),
     route_code        VARCHAR2(100 CHAR),
@@ -24,7 +24,7 @@ CREATE TABLE sgn_route_instance (
     CONSTRAINT sgn_route_instance_doc_uk UNIQUE (external_doc_id),
     CONSTRAINT sgn_route_instance_status_ck
         CHECK (status IN ('ACTIVE', 'COMPLETED', 'REJECTED', 'EXPIRED', 'CANCELLED', 'FAILED')),
-    -- Route code and version are fixed together; only an instance that never resolved a route has neither.
+    -- Код и версия маршрута фиксируются вместе; только у экземпляра, для которого маршрут так и не определился, нет ни того, ни другого.
     CONSTRAINT sgn_route_instance_route_ck
         CHECK ((route_code IS NULL AND route_version IS NULL) OR (route_code IS NOT NULL AND route_version IS NOT NULL)),
     CONSTRAINT sgn_route_instance_active_ck
@@ -34,7 +34,7 @@ CREATE TABLE sgn_route_instance (
         CHECK ((locked_by IS NULL AND locked_until IS NULL) OR (locked_by IS NOT NULL AND locked_until IS NOT NULL))
 );
 
--- Candidate selection: status = 'ACTIVE' AND next_attempt_at <= SYSTIMESTAMP ORDER BY next_attempt_at.
+-- Выбор кандидатов: status = 'ACTIVE' AND next_attempt_at <= SYSTIMESTAMP ORDER BY next_attempt_at.
 CREATE INDEX sgn_route_instance_due_ix ON sgn_route_instance (status, next_attempt_at);
 
 COMMENT ON TABLE sgn_route_instance IS 'Route instance: one row per document being routed for signing.';

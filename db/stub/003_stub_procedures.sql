@@ -1,5 +1,5 @@
--- Contract procedures over the stub tables. No COMMIT, no autonomous transactions:
--- they run inside the caller's transaction (db/contract/README.md, "Transactions").
+-- Процедуры контракта поверх таблиц заглушки. Без COMMIT и автономных транзакций:
+-- они выполняются внутри транзакции вызывающей стороны (db/contract/README.md, раздел "Transactions").
 
 CREATE OR REPLACE PROCEDURE create_sign_request (
     p_request_id IN VARCHAR2,
@@ -19,10 +19,10 @@ BEGIN
     INSERT INTO stub_sign_request (request_id, doc_id, kind, signer)
     VALUES (p_request_id, p_doc_id, p_kind, p_signer);
 EXCEPTION
-    -- Idempotency: the request already exists (also after waiting on a concurrent insert).
+    -- Идемпотентность: запрос уже существует (в том числе после ожидания параллельной вставки).
     WHEN DUP_VAL_ON_INDEX THEN
         NULL;
-    -- Unknown document.
+    -- Неизвестный документ.
     WHEN OTHERS THEN
         IF SQLCODE = -2291 THEN
             RAISE_APPLICATION_ERROR(-20003, 'Unknown document ' || p_doc_id || '.');
@@ -35,7 +35,7 @@ CREATE OR REPLACE PROCEDURE cancel_sign_request (
     p_request_id IN VARCHAR2
 ) AS
 BEGIN
-    -- Idempotent: final statuses and unknown ids are left alone.
+    -- Идемпотентно: финальные статусы и неизвестные идентификаторы не изменяются.
     UPDATE stub_sign_request
        SET status = 'REJECTED',
            status_reason = 'CANCELLED'

@@ -4,9 +4,9 @@ using Invest.Sign.Router.Core.Model;
 namespace Invest.Sign.Router.Tests.Fakes;
 
 /// <summary>
-/// In-memory stand-in for the Oracle database: service tables, the external signing side and a controlled clock.
-/// Units of work apply changes immediately and undo them on rollback. Tests run sequentially, so isolation
-/// between concurrent units of work is not modelled.
+/// Замена базы данных Oracle в памяти: таблицы сервиса, внешняя сторона подписания и управляемые часы.
+/// Единицы работы применяют изменения сразу и отменяют их при откате. Тесты выполняются последовательно, поэтому изоляция
+/// между параллельными единицами работы не моделируется.
 /// </summary>
 public sealed class InMemoryDatabase
 {
@@ -23,24 +23,24 @@ public sealed class InMemoryDatabase
 
     public List<StoredAudit> Audit { get; } = [];
 
-    /// <summary>External side: rows of the sign requests view, by request id.</summary>
+    /// <summary>Внешняя сторона: строки представления запросов на подписание по идентификатору запроса.</summary>
     public Dictionary<string, FakeSignRequest> SignRequests { get; } = [];
 
-    /// <summary>Every call of <c>create_sign_request</c>, kept even when the transaction rolls back.</summary>
+    /// <summary>Каждый вызов <c>create_sign_request</c>, сохраняется даже при откате транзакции.</summary>
     public List<SignRequest> CreateRequestCalls { get; } = [];
 
     /// <summary>
-    /// When false, gateway changes survive a rollback, as if the external side committed on its own.
-    /// Used to check that the engine relies on idempotency, not only on the shared transaction.
+    /// Если false, изменения шлюза переживают откат, как будто внешняя сторона зафиксировала их сама.
+    /// Используется для проверки того, что движок опирается на идемпотентность, а не только на общую транзакцию.
     /// </summary>
     public bool GatewayTransactional { get; set; } = true;
 
-    /// <summary>Called before every operation with its name (see <see cref="Ops"/>). May throw or mutate state.</summary>
+    /// <summary>Вызывается перед каждой операцией с её именем (см. <see cref="Ops"/>). Может выбросить исключение или изменить состояние.</summary>
     public Action<string>? BeforeOperation { get; set; }
 
     public void Advance(TimeSpan delta) => Now += delta;
 
-    /// <summary>Makes the next <paramref name="times"/> calls of <paramref name="operation"/> throw.</summary>
+    /// <summary>Заставляет следующие <paramref name="times"/> вызовов <paramref name="operation"/> выбросить исключение.</summary>
     public void FailOn(string operation, int times = 1, Func<Exception>? error = null) =>
         _failures[operation] = (times, error ?? (() => new IOException($"Injected failure in {operation}.")));
 
@@ -57,7 +57,7 @@ public sealed class InMemoryDatabase
 
     internal long NextId() => ++_sequence;
 
-    // ---- External side: what the signing software would do. ----
+    // ---- Внешняя сторона: то, что делало бы ПО подписания. ----
 
     public void Sign(string requestId, string? fileRef = null, string? fileHash = null, long? fileSize = null) =>
         SetResult(requestId, r => r with
@@ -86,7 +86,7 @@ public sealed class InMemoryDatabase
         SignRequests[requestId] = request with { Result = change(request.Result) };
     }
 
-    // ---- Queries for assertions. ----
+    // ---- Запросы для проверок. ----
 
     public RouteInstance RouteByDoc(string docId) => Routes.Values.Single(r => r.ExternalDocId == docId);
 

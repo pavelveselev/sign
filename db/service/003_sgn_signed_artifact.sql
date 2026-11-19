@@ -1,4 +1,4 @@
--- SGN_SIGNED_ARTIFACT: signed file copied from the share. Kept for several years.
+-- SGN_SIGNED_ARTIFACT: подписанный файл, скопированный с общего ресурса. Хранится несколько лет.
 
 CREATE TABLE sgn_signed_artifact (
     id                 NUMBER(19)               GENERATED ALWAYS AS IDENTITY,
@@ -9,7 +9,7 @@ CREATE TABLE sgn_signed_artifact (
     source_ref         VARCHAR2(1000 CHAR)      NOT NULL,
     stored_at          TIMESTAMP WITH TIME ZONE DEFAULT SYSTIMESTAMP NOT NULL,
     CONSTRAINT sgn_signed_artifact_pk PRIMARY KEY (id),
-    -- One signed file per stage.
+    -- Один подписанный файл на этап.
     CONSTRAINT sgn_signed_artifact_stage_uk UNIQUE (stage_instance_id),
     CONSTRAINT sgn_signed_artifact_stage_fk
         FOREIGN KEY (stage_instance_id) REFERENCES sgn_stage_instance (id),

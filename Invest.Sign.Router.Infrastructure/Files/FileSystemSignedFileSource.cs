@@ -2,18 +2,18 @@ using Invest.Sign.Router.Core.Abstractions;
 
 namespace Invest.Sign.Router.Infrastructure.Files;
 
-/// <summary>Settings of <see cref="FileSystemSignedFileSource"/>.</summary>
+/// <summary>Настройки <see cref="FileSystemSignedFileSource"/>.</summary>
 public sealed class SignedFilesOptions
 {
     public const string SectionName = "SignedFiles";
 
     /// <summary>
-    /// Absolute path of the share root as seen by the service (e.g. a CSI mount in Kubernetes, open question 8).
-    /// Its existence is not checked at startup: an unavailable share is a technical failure retried per document.
+    /// Абсолютный путь корня общего ресурса с точки зрения сервиса (например, CSI-монтирование в Kubernetes, открытый вопрос 8).
+    /// Его существование при запуске не проверяется: недоступный ресурс — техническая ошибка, повторяемая для каждого документа.
     /// </summary>
     public string Root { get; set; } = "";
 
-    /// <summary>Max time to read one file. A hung share read must not block the engine.</summary>
+    /// <summary>Максимальное время чтения одного файла. Зависшее чтение с общего ресурса не должно блокировать движок.</summary>
     public TimeSpan ReadTimeout { get; set; } = TimeSpan.FromSeconds(60);
 
     public IReadOnlyList<string> Validate()
@@ -34,12 +34,12 @@ public sealed class SignedFilesOptions
 }
 
 /// <summary>
-/// Reads signed files from a directory tree: <c>file_ref</c> is a path relative to <see cref="SignedFilesOptions.Root"/>.
-/// Paths resolving outside the root are refused. Both <c>/</c> and <c>\</c> are accepted as separators.
+/// Читает подписанные файлы из дерева каталогов: <c>file_ref</c> — путь относительно <see cref="SignedFilesOptions.Root"/>.
+/// Пути, выходящие за пределы корня, отклоняются. В качестве разделителей принимаются и <c>/</c>, и <c>\</c>.
 /// </summary>
 /// <remarks>
-/// The file is opened with <see cref="FileShare.Read"/>: a file still held for writing fails with
-/// <see cref="IOException"/>, which the engine retries. Symbolic links inside the root are followed as is.
+/// Файл открывается с <see cref="FileShare.Read"/>: файл, ещё открытый на запись, приводит к
+/// <see cref="IOException"/>, которое движок повторяет. Символические ссылки внутри корня обрабатываются как есть.
 /// </remarks>
 public sealed class FileSystemSignedFileSource : ISignedFileSource
 {
@@ -54,7 +54,7 @@ public sealed class FileSystemSignedFileSource : ISignedFileSource
     {
     }
 
-    /// <summary>Test seam: replaces the actual read to simulate a hanging share.</summary>
+    /// <summary>Точка подмены для тестов: заменяет реальное чтение, чтобы имитировать зависший общий ресурс.</summary>
     internal FileSystemSignedFileSource(SignedFilesOptions options, Func<string, CancellationToken, Task<byte[]>> read)
     {
         var errors = options.Validate();
@@ -76,8 +76,8 @@ public sealed class FileSystemSignedFileSource : ISignedFileSource
         timeout.CancelAfter(_readTimeout);
         try
         {
-            // WaitAsync also bounds reads that ignore cancellation (e.g. a stuck network file system call);
-            // such a read is abandoned and its thread is released when the call eventually returns.
+            // WaitAsync ограничивает и чтения, игнорирующие отмену (например, зависший вызов сетевой файловой системы);
+            // такое чтение бросается, а его поток освобождается, когда вызов в конце концов вернётся.
             return await _read(path, timeout.Token).WaitAsync(_readTimeout, cancellationToken);
         }
         catch (Exception ex) when (ex is OperationCanceledException or TimeoutException && !cancellationToken.IsCancellationRequested)
@@ -86,8 +86,8 @@ public sealed class FileSystemSignedFileSource : ISignedFileSource
         }
     }
 
-    /// <summary>Maps <paramref name="fileRef"/> to a full path under the root.</summary>
-    /// <exception cref="InvalidFileRefException">The reference is empty, absolute or points outside the root.</exception>
+    /// <summary>Отображает <paramref name="fileRef"/> в полный путь внутри корня.</summary>
+    /// <exception cref="InvalidFileRefException">Ссылка пустая, абсолютная или указывает за пределы корня.</exception>
     internal string Resolve(string fileRef)
     {
         if (string.IsNullOrWhiteSpace(fileRef))
@@ -130,7 +130,7 @@ public sealed class FileSystemSignedFileSource : ISignedFileSource
     }
 }
 
-/// <summary><c>file_ref</c> cannot be mapped to a file under the share root.</summary>
+/// <summary><c>file_ref</c> не удаётся отобразить в файл внутри корня общего ресурса.</summary>
 public sealed class InvalidFileRefException(string? fileRef, string reason)
     : Exception($"Invalid signed file reference '{fileRef}': {reason}.")
 {

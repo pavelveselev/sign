@@ -4,14 +4,14 @@ using System.Text.Json;
 namespace Invest.Sign.Router.Core.Model;
 
 /// <summary>
-/// Document data available to route conditions: identity, type, attributes and content hash.
-/// Attributes are a JSON object (open question 3). Values are read on demand.
+/// Данные документа, доступные условиям маршрута: идентификатор, тип, атрибуты и хеш содержимого.
+/// Атрибуты — JSON-объект (открытый вопрос 3). Значения читаются по требованию.
 /// </summary>
 /// <remarks>
-/// <c>GetXxx</c> methods are strict: a missing, null or malformed attribute throws
-/// <see cref="DocumentAttributeException"/>, so a condition never silently evaluates on absent data.
-/// <c>GetXxxOrNull</c> methods return null for a missing or null attribute and still throw on a malformed value.
-/// Numbers are accepted as JSON numbers or as strings in invariant culture.
+/// Методы <c>GetXxx</c> строгие: отсутствующий, null или некорректный атрибут выбрасывает
+/// <see cref="DocumentAttributeException"/>, поэтому условие никогда молча не вычисляется на отсутствующих данных.
+/// Методы <c>GetXxxOrNull</c> возвращают null для отсутствующего или null-атрибута, но всё равно выбрасывают исключение при некорректном значении.
+/// Числа принимаются как JSON-числа или как строки в инвариантной культуре.
 /// </remarks>
 public sealed class DocumentContext
 {
@@ -32,7 +32,7 @@ public sealed class DocumentContext
 
     public string DocType { get; }
 
-    /// <summary>Hash of the source document, may be absent (open question 4).</summary>
+    /// <summary>Хеш исходного документа, может отсутствовать (открытый вопрос 4).</summary>
     public string? ContentHash { get; }
 
     public bool Has(string name) =>
@@ -145,7 +145,7 @@ public sealed class DocumentContext
                     $"Document attributes must be a JSON object, got {document.RootElement.ValueKind}.");
             }
 
-            // Clone detaches the element from the pooled document so it can be disposed.
+            // Clone отвязывает элемент от документа из пула, чтобы тот можно было освободить.
             return document.RootElement.Clone();
         }
     }
@@ -163,7 +163,7 @@ public sealed class DocumentContext
         new($"Document '{ExternalDocId}' attribute '{name}' is not a valid {expected}.");
 }
 
-/// <summary>Document attributes are missing, malformed or of an unexpected type.</summary>
+/// <summary>Атрибуты документа отсутствуют, некорректны или имеют неожиданный тип.</summary>
 public sealed class DocumentAttributeException : Exception
 {
     public DocumentAttributeException(string message)

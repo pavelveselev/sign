@@ -9,7 +9,7 @@ public sealed class FakeUnitOfWorkFactory(InMemoryDatabase db) : IUnitOfWorkFact
         Task.FromResult<IUnitOfWork>(new FakeUnitOfWork(db));
 }
 
-/// <summary>A transaction over <see cref="InMemoryDatabase"/>: changes apply at once and are undone on rollback.</summary>
+/// <summary>Транзакция над <see cref="InMemoryDatabase"/>: изменения применяются сразу и отменяются при откате.</summary>
 public sealed class FakeUnitOfWork(InMemoryDatabase db) : IUnitOfWork, IRouteInstanceStore, ISigningGateway
 {
     private readonly Stack<Action> _undo = new();
@@ -193,14 +193,14 @@ public sealed class FakeUnitOfWork(InMemoryDatabase db) : IUnitOfWork, IRouteIns
         return Task.CompletedTask;
     }
 
-    // ---- ISigningGateway (stub of the external contract) ----
+    // ---- ISigningGateway (заглушка внешнего контракта) ----
 
     public Task CreateRequestAsync(SignRequest request, CancellationToken cancellationToken)
     {
         Begin(Ops.CreateRequest);
         db.CreateRequestCalls.Add(request);
 
-        // Idempotent by request id.
+        // Идемпотентно по идентификатору запроса.
         if (!db.SignRequests.ContainsKey(request.RequestId))
         {
             db.SignRequests[request.RequestId] = new FakeSignRequest(

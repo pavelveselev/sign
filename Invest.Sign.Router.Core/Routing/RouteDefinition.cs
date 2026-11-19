@@ -2,7 +2,7 @@ using Invest.Sign.Router.Core.Model;
 
 namespace Invest.Sign.Router.Core.Routing;
 
-/// <summary>An immutable, validated route: an ordered list of sequential stages.</summary>
+/// <summary>Неизменяемый проверенный маршрут: упорядоченный список последовательных этапов.</summary>
 public sealed class RouteDefinition
 {
     private readonly Dictionary<string, int> _indexByKey;
@@ -17,7 +17,7 @@ public sealed class RouteDefinition
             .ToDictionary(x => x.Key, x => x.index, StringComparer.Ordinal);
     }
 
-    /// <summary>Route code. Equals the document type the route serves.</summary>
+    /// <summary>Код маршрута. Равен типу документа, который обслуживает маршрут.</summary>
     public string Code { get; }
 
     public int Version { get; }
@@ -30,19 +30,19 @@ public sealed class RouteDefinition
         _indexByKey.TryGetValue(key, out var index) ? Stages[index] : null;
 
     /// <summary>
-    /// Returns the first stage after <paramref name="currentStageKey"/> (or from the start when null)
-    /// whose condition holds for the document. Null means the route is complete.
+    /// Возвращает первый этап после <paramref name="currentStageKey"/> (или с начала, если null),
+    /// условие которого выполняется для документа. Null означает, что маршрут завершён.
     /// </summary>
-    /// <exception cref="ArgumentException">The current stage key is not part of this route.</exception>
-    /// <exception cref="StageConditionException">A stage condition threw.</exception>
+    /// <exception cref="ArgumentException">Ключ текущего этапа не входит в этот маршрут.</exception>
+    /// <exception cref="StageConditionException">Условие этапа выбросило исключение.</exception>
     public StageDefinition? NextStage(string? currentStageKey, DocumentContext document) =>
         SelectNextStage(currentStageKey, document).Next;
 
     /// <summary>
-    /// Like <see cref="NextStage"/>, but also returns the stages skipped because their condition did not hold.
+    /// Как <see cref="NextStage"/>, но также возвращает этапы, пропущенные из-за невыполненного условия.
     /// </summary>
-    /// <exception cref="ArgumentException">The current stage key is not part of this route.</exception>
-    /// <exception cref="StageConditionException">A stage condition threw.</exception>
+    /// <exception cref="ArgumentException">Ключ текущего этапа не входит в этот маршрут.</exception>
+    /// <exception cref="StageConditionException">Условие этапа выбросило исключение.</exception>
     public StageSelection SelectNextStage(string? currentStageKey, DocumentContext document)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -76,10 +76,10 @@ public sealed class RouteDefinition
     public override string ToString() => Key.ToString();
 }
 
-/// <summary>Result of selecting the next stage: the stage to enter (null = route complete) and the skipped ones.</summary>
+/// <summary>Результат выбора следующего этапа: этап для входа (null = маршрут завершён) и пропущенные этапы.</summary>
 public sealed record StageSelection(StageDefinition? Next, IReadOnlyList<StageDefinition> Skipped);
 
-/// <summary>Registry key of a route.</summary>
+/// <summary>Ключ маршрута в реестре.</summary>
 public readonly record struct RouteKey(string Code, int Version)
 {
     public override string ToString() => $"{Code}@v{Version}";

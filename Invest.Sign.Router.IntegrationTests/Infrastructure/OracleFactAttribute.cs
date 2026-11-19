@@ -2,7 +2,7 @@ using System.Diagnostics;
 
 namespace Invest.Sign.Router.IntegrationTests.Infrastructure;
 
-/// <summary>A fact that needs Oracle in Docker. Skipped, with the reason shown, when Docker is not available.</summary>
+/// <summary>Тест, которому нужен Oracle в Docker. Пропускается с указанием причины, если Docker недоступен.</summary>
 public sealed class OracleFactAttribute : FactAttribute
 {
     public OracleFactAttribute()
@@ -30,7 +30,7 @@ public static class DockerAvailability
 {
     private static readonly Lazy<string?> Reason = new(Check);
 
-    /// <summary>Null when Docker is reachable, otherwise why Oracle tests are skipped.</summary>
+    /// <summary>Null, если Docker доступен, иначе — причина пропуска тестов Oracle.</summary>
     public static string? SkipReason => Reason.Value;
 
     private static string? Check()

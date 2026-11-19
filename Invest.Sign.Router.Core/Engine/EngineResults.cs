@@ -2,28 +2,28 @@ namespace Invest.Sign.Router.Core.Engine;
 
 public enum StepOutcome
 {
-    /// <summary>The instance was taken by another replica or is no longer due.</summary>
+    /// <summary>Экземпляр захвачен другой репликой или больше не готов к обработке.</summary>
     NotAcquired,
 
-    /// <summary>One transition (or a poll without change) was committed.</summary>
+    /// <summary>Зафиксирован один переход (или опрос без изменений).</summary>
     Advanced,
 
-    /// <summary>The lease was lost during the step; nothing was written.</summary>
+    /// <summary>Аренда потеряна во время шага; ничего не записано.</summary>
     LeaseLost,
 
-    /// <summary>A technical failure was recorded; a retry is scheduled or attempts are exhausted.</summary>
+    /// <summary>Зафиксирована техническая ошибка; запланирован повтор или попытки исчерпаны.</summary>
     TechnicalFailure,
 
-    /// <summary>A technical failure happened and could not be recorded; the lease will expire on its own.</summary>
+    /// <summary>Произошла техническая ошибка, и её не удалось зафиксировать; аренда истечёт сама.</summary>
     FailureNotRecorded,
 }
 
-/// <summary>Result of processing one route instance. <see cref="Error"/> is set for failures.</summary>
+/// <summary>Результат обработки одного экземпляра маршрута. При ошибках заполняется <see cref="Error"/>.</summary>
 public sealed record StepResult(long RouteId, StepOutcome Outcome, Exception? Error = null);
 
 /// <summary>
-/// Result of the discovery phase. <see cref="SourceError"/> is set when the incoming documents could not be read;
-/// <see cref="Errors"/> lists documents that failed to be inserted.
+/// Результат фазы обнаружения. <see cref="SourceError"/> заполняется, если входящие документы не удалось прочитать;
+/// <see cref="Errors"/> перечисляет документы, которые не удалось вставить.
 /// </summary>
 public sealed record DiscoveryResult(
     int Created,
@@ -31,5 +31,5 @@ public sealed record DiscoveryResult(
     IReadOnlyList<(string DocId, Exception Error)> Errors,
     Exception? SourceError = null);
 
-/// <summary>Result of one tick.</summary>
+/// <summary>Результат одного такта.</summary>
 public sealed record TickResult(DiscoveryResult Discovery, IReadOnlyList<StepResult> Steps);

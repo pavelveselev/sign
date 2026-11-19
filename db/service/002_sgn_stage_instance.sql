@@ -1,4 +1,4 @@
--- SGN_STAGE_INSTANCE: a stage of a route instance, created on stage entry. Keeps the history.
+-- SGN_STAGE_INSTANCE: этап экземпляра маршрута, создаётся при входе в этап. Хранит историю.
 
 CREATE TABLE sgn_stage_instance (
     id                 NUMBER(19)               GENERATED ALWAYS AS IDENTITY,

@@ -4,8 +4,8 @@ using Invest.Sign.Router.Core.Model;
 namespace Invest.Sign.Router.Infrastructure.Oracle;
 
 /// <summary>
-/// <see cref="ISigningGateway"/> over the external contract (db/contract): procedures are called inside the
-/// unit-of-work transaction, they never commit on their own.
+/// <see cref="ISigningGateway"/> поверх внешнего контракта (db/contract): процедуры вызываются внутри
+/// транзакции единицы работы и никогда не фиксируют её сами.
 /// </summary>
 internal sealed class OracleSigningGateway(OracleSession session, string externalSchema) : ISigningGateway
 {

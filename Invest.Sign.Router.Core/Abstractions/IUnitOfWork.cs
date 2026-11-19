@@ -1,15 +1,15 @@
 namespace Invest.Sign.Router.Core.Abstractions;
 
-/// <summary>Opens units of work. In Oracle: one connection and one transaction per unit.</summary>
+/// <summary>Открывает единицы работы. В Oracle: одно соединение и одна транзакция на единицу.</summary>
 public interface IUnitOfWorkFactory
 {
     Task<IUnitOfWork> BeginAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>
-/// One database transaction. The store and the signing gateway share it, so creating a signing
-/// request and moving the stage to <c>REQUESTED</c> commit or roll back together.
-/// Disposing without <see cref="CommitAsync"/> rolls back.
+/// Одна транзакция базы данных. Хранилище и шлюз подписания используют её совместно, поэтому создание запроса
+/// на подписание и перевод этапа в <c>REQUESTED</c> фиксируются или откатываются вместе.
+/// Освобождение без <see cref="CommitAsync"/> выполняет откат.
 /// </summary>
 public interface IUnitOfWork : IAsyncDisposable
 {

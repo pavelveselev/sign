@@ -7,13 +7,13 @@ using Invest.Sign.Router.Core.Routing;
 namespace Invest.Sign.Router.Core.Engine;
 
 /// <summary>
-/// Route engine. One <see cref="TickAsync"/> discovers new documents and processes due route instances
-/// one by one: capture the lease, perform exactly one transition, release the lease in the same transaction.
+/// Движок маршрутов. Один <see cref="TickAsync"/> обнаруживает новые документы и по очереди обрабатывает готовые
+/// экземпляры маршрутов: захват аренды, ровно один переход, освобождение аренды в той же транзакции.
 /// </summary>
 /// <remarks>
-/// Business outcomes (rejection, timeout, signing error, artifact mismatch, condition error) are ordinary
-/// transitions. Any other exception from a step is a technical failure: attempts are incremented and a retry
-/// is scheduled with exponential backoff in a separate transaction. A lost lease discards the step.
+/// Бизнес-исходы (отклонение, истечение срока, ошибка подписания, несовпадение артефакта, ошибка условия) являются обычными
+/// переходами. Любое другое исключение шага — техническая ошибка: счётчик попыток увеличивается, а повтор
+/// планируется с экспоненциальной задержкой в отдельной транзакции. Потеря аренды отбрасывает шаг.
 /// </remarks>
 public sealed class SigningEngine
 {
@@ -52,12 +52,12 @@ public sealed class SigningEngine
         ReplicaId = replicaId;
     }
 
-    /// <summary>Lease owner and audit actor.</summary>
+    /// <summary>Владелец аренды и исполнитель в журнале аудита.</summary>
     public string ReplicaId { get; }
 
     /// <summary>
-    /// Discovers new documents, then processes due instances sequentially.
-    /// Cancellation is checked between instances; a step in progress receives the same token.
+    /// Обнаруживает новые документы, затем последовательно обрабатывает готовые экземпляры.
+    /// Отмена проверяется между экземплярами; выполняемый шаг получает тот же токен.
     /// </summary>
     public async Task<TickResult> TickAsync(CancellationToken cancellationToken)
     {
@@ -84,8 +84,8 @@ public sealed class SigningEngine
     }
 
     /// <summary>
-    /// Creates route instances for new incoming documents. A document inserted concurrently by another
-    /// replica is counted as already existing. A document of an unknown type gets a <c>FAILED</c> instance.
+    /// Создаёт экземпляры маршрутов для новых входящих документов. Документ, одновременно вставленный другой
+    /// репликой, считается уже существующим. Документ неизвестного типа получает экземпляр в статусе <c>FAILED</c>.
     /// </summary>
     public async Task<DiscoveryResult> DiscoverAsync(CancellationToken cancellationToken)
     {
@@ -129,7 +129,7 @@ public sealed class SigningEngine
         return new DiscoveryResult(created, existing, errors);
     }
 
-    /// <summary>Captures the instance, performs one step and releases it.</summary>
+    /// <summary>Захватывает экземпляр, выполняет один шаг и освобождает его.</summary>
     public async Task<StepResult> ProcessAsync(long routeId, CancellationToken cancellationToken)
     {
         await using (var uow = await _unitOfWork.BeginAsync(cancellationToken))
@@ -200,7 +200,7 @@ public sealed class SigningEngine
 
     private async Task StepAsync(long routeId, CancellationToken ct)
     {
-        // Phase 1: read state and, for a requested stage, the result of the request.
+        // Фаза 1: чтение состояния и, для этапа в состоянии REQUESTED, результата запроса.
         DateTimeOffset readAt;
         RouteInstance route;
         StageInstance? stage = null;
@@ -228,7 +228,7 @@ public sealed class SigningEngine
             }
         }
 
-        // Phase 2: one transition, each in its own transaction.
+        // Фаза 2: один переход, каждый в своей транзакции.
         if (definition is null)
         {
             await FinishAsync(route, RouteStatus.Failed, StatusReasons.RouteNotFound,
@@ -301,7 +301,7 @@ public sealed class SigningEngine
 
         await InTransactionAsync(async (store, gateway, now) =>
         {
-            // Fence first: a lost lease must not reach the signing software.
+            // Сначала проверка аренды: потерянная аренда не должна дойти до ПО подписания.
             await store.UpdateAndReleaseAsync(
                 route with { Attempts = 0, NextAttemptAt = now + _options.PollInterval },
                 ReplicaId, ct);
@@ -327,7 +327,7 @@ public sealed class SigningEngine
     private async Task HandleCheckAsync(
         RouteInstance route, StageInstance stage, SignRequestResult check, DateTimeOffset checkedAt, CancellationToken ct)
     {
-        // The result is evaluated before the deadline: a signature that arrived late still counts.
+        // Результат проверяется до срока: подпись, пришедшая с опозданием, всё равно засчитывается.
         switch (check.Status)
         {
             case SignRequestStatus.Signed:
@@ -379,7 +379,7 @@ public sealed class SigningEngine
         NewSignedArtifact? artifact = null;
         if (!string.IsNullOrWhiteSpace(check.FileRef))
         {
-            // Read outside of any transaction: the share may be slow.
+            // Чтение вне транзакции: общий ресурс может быть медленным.
             var content = await _files.ReadAsync(check.FileRef, ct);
             var sha256 = Convert.ToHexStringLower(SHA256.HashData(content));
 
@@ -426,7 +426,7 @@ public sealed class SigningEngine
     }
 
     /// <summary>
-    /// Moves the route to a terminal status and, if given and not terminal yet, the stage to a terminal state.
+    /// Переводит маршрут в терминальный статус и, если этап задан и ещё не терминален, этап — в терминальное состояние.
     /// </summary>
     private Task FinishAsync(
         RouteInstance route,

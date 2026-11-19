@@ -1,6 +1,6 @@
 namespace Invest.Sign.Router.Core.Model;
 
-/// <summary>A route instance: one per document. Mirrors <c>SGN_ROUTE_INSTANCE</c>.</summary>
+/// <summary>Экземпляр маршрута: один на документ. Соответствует <c>SGN_ROUTE_INSTANCE</c>.</summary>
 public sealed record RouteInstance
 {
     public required long Id { get; init; }
@@ -9,15 +9,15 @@ public sealed record RouteInstance
 
     public required string DocType { get; init; }
 
-    /// <summary>Document attributes as a JSON object, may be null.</summary>
+    /// <summary>Атрибуты документа в виде JSON-объекта, могут быть null.</summary>
     public string? Attributes { get; init; }
 
     public string? ContentHash { get; init; }
 
-    /// <summary>Route code fixed at start. Null when the route was not resolved (e.g. unknown doc type).</summary>
+    /// <summary>Код маршрута, фиксируемый при старте. Null, если маршрут не определён (например, неизвестный тип документа).</summary>
     public string? RouteCode { get; init; }
 
-    /// <summary>Route version fixed at start. Null when the route was not resolved.</summary>
+    /// <summary>Версия маршрута, фиксируемая при старте. Null, если маршрут не определён.</summary>
     public int? RouteVersion { get; init; }
 
     public required RouteStatus Status { get; init; }
@@ -26,7 +26,7 @@ public sealed record RouteInstance
 
     public long? CurrentStageId { get; init; }
 
-    /// <summary>Number of consecutive technical failures.</summary>
+    /// <summary>Число подряд идущих технических ошибок.</summary>
     public int Attempts { get; init; }
 
     public required DateTimeOffset NextAttemptAt { get; init; }

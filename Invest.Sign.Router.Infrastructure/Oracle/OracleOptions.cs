@@ -2,21 +2,21 @@ using System.Text.RegularExpressions;
 
 namespace Invest.Sign.Router.Infrastructure.Oracle;
 
-/// <summary>Oracle settings. Credentials come from configuration/secrets, never from the repository.</summary>
+/// <summary>Настройки Oracle. Учётные данные берутся из конфигурации/секретов, никогда не из репозитория.</summary>
 public sealed partial class OracleOptions
 {
     public const string SectionName = "Oracle";
 
     /// <summary>
-    /// ODP.NET connection string. The session must resolve the <c>SGN_*</c> tables unqualified,
-    /// i.e. connect as the service schema owner.
+    /// Строка подключения ODP.NET. Сессия должна разрешать таблицы <c>SGN_*</c> без указания схемы,
+    /// т. е. подключаться от имени владельца схемы сервиса.
     /// </summary>
     public string ConnectionString { get; set; } = "";
 
-    /// <summary>Schema of the external contract objects (db/contract). Unquoted Oracle identifier.</summary>
+    /// <summary>Схема объектов внешнего контракта (db/contract). Идентификатор Oracle без кавычек.</summary>
     public string ExternalSchema { get; set; } = "";
 
-    /// <summary>Timeout of a single SQL command.</summary>
+    /// <summary>Тайм-аут одной SQL-команды.</summary>
     public int CommandTimeoutSeconds { get; set; } = 30;
 
     public IReadOnlyList<string> Validate()
@@ -49,7 +49,7 @@ public sealed partial class OracleOptions
         }
     }
 
-    // The schema name is inlined into SQL text, so it is restricted to a safe identifier.
+    // Имя схемы подставляется прямо в текст SQL, поэтому ограничено безопасным идентификатором.
     [GeneratedRegex("^[A-Za-z][A-Za-z0-9_$#]{0,127}$")]
     private static partial Regex IdentifierPattern();
 }

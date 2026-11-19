@@ -1,6 +1,6 @@
 namespace Invest.Sign.Router.Core.Model;
 
-/// <summary>Status of a route instance. Common for all document types.</summary>
+/// <summary>Статус экземпляра маршрута. Общий для всех типов документов.</summary>
 public enum RouteStatus
 {
     Active,
@@ -15,7 +15,7 @@ public static class RouteStatusExtensions
 {
     public static bool IsTerminal(this RouteStatus status) => status != RouteStatus.Active;
 
-    /// <summary>Value stored in <c>SGN_ROUTE_INSTANCE.status</c>.</summary>
+    /// <summary>Значение, хранимое в <c>SGN_ROUTE_INSTANCE.status</c>.</summary>
     public static string ToCode(this RouteStatus status) => status switch
     {
         RouteStatus.Active => "ACTIVE",

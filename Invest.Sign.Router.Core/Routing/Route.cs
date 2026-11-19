@@ -2,7 +2,7 @@ using Invest.Sign.Router.Core.Model;
 
 namespace Invest.Sign.Router.Core.Routing;
 
-/// <summary>Entry point of the fluent route API.</summary>
+/// <summary>Точка входа fluent API маршрутов.</summary>
 /// <example>
 /// <code>
 /// Route.For("contract", version: 1)
@@ -15,12 +15,12 @@ namespace Invest.Sign.Router.Core.Routing;
 /// </example>
 public static class Route
 {
-    /// <param name="code">Route code, equal to the document type the route serves.</param>
-    /// <param name="version">Route version, starting from 1. New documents get the highest version.</param>
+    /// <param name="code">Код маршрута, равный типу документа, который обслуживает маршрут.</param>
+    /// <param name="version">Версия маршрута, начиная с 1. Новые документы получают наибольшую версию.</param>
     public static RouteBuilder For(string code, int version) => new(code, version);
 }
 
-/// <summary>Collects stages of a route. Validation happens in <see cref="Build"/> and reports all errors at once.</summary>
+/// <summary>Собирает этапы маршрута. Проверка выполняется в <see cref="Build"/> и сообщает обо всех ошибках сразу.</summary>
 public sealed class RouteBuilder
 {
     private readonly string _code;
@@ -33,7 +33,7 @@ public sealed class RouteBuilder
         _version = version;
     }
 
-    /// <summary>Appends a sequential stage.</summary>
+    /// <summary>Добавляет последовательный этап.</summary>
     public RouteBuilder Stage(string key, Action<StageBuilder> configure)
     {
         ArgumentNullException.ThrowIfNull(configure);
@@ -44,8 +44,8 @@ public sealed class RouteBuilder
         return this;
     }
 
-    /// <summary>Validates the route and returns an immutable definition.</summary>
-    /// <exception cref="RouteDefinitionException">The route is invalid.</exception>
+    /// <summary>Проверяет маршрут и возвращает неизменяемое определение.</summary>
+    /// <exception cref="RouteDefinitionException">Маршрут некорректен.</exception>
     public RouteDefinition Build()
     {
         var subject = $"Route '{_code}' v{_version}";
@@ -87,7 +87,7 @@ public sealed class RouteBuilder
     }
 }
 
-/// <summary>Configures a single stage. Signing kind and timeout are mandatory.</summary>
+/// <summary>Настраивает отдельный этап. Вид подписания и срок обязательны.</summary>
 public sealed class StageBuilder
 {
     private readonly List<string> _errors = [];
@@ -103,13 +103,13 @@ public sealed class StageBuilder
 
     internal string Key { get; }
 
-    /// <summary>Signing by an employee; the signing software notifies the signer.</summary>
+    /// <summary>Подписание сотрудником; ПО подписания уведомляет подписанта.</summary>
     public StageBuilder Manual(string signer) => SetKind(SigningKind.Manual, signer);
 
-    /// <summary>Automatic signing by the signing software.</summary>
+    /// <summary>Автоматическое подписание ПО подписания.</summary>
     public StageBuilder Automatic(string signer) => SetKind(SigningKind.Auto, signer);
 
-    /// <summary>Time allowed for the signing request. Mandatory.</summary>
+    /// <summary>Время, отведённое на запрос на подписание. Обязательно.</summary>
     public StageBuilder Timeout(TimeSpan timeout)
     {
         if (_timeout is not null)
@@ -121,7 +121,7 @@ public sealed class StageBuilder
         return this;
     }
 
-    /// <summary>Entry condition, evaluated on document attributes when the route reaches this stage.</summary>
+    /// <summary>Условие входа, вычисляемое по атрибутам документа, когда маршрут доходит до этого этапа.</summary>
     public StageBuilder When(Func<DocumentContext, bool> condition)
     {
         ArgumentNullException.ThrowIfNull(condition);
@@ -181,7 +181,7 @@ public sealed class StageBuilder
 
 internal static class Identifier
 {
-    /// <summary>Checks that an identifier is non-empty, has no surrounding whitespace and fits the column.</summary>
+    /// <summary>Проверяет, что идентификатор непустой, не содержит пробелов по краям и помещается в столбец.</summary>
     public static bool Validate(string what, string? value, int maxLength, List<string> errors)
     {
         if (string.IsNullOrWhiteSpace(value))

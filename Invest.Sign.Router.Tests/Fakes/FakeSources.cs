@@ -2,14 +2,14 @@ using Invest.Sign.Router.Core.Abstractions;
 
 namespace Invest.Sign.Router.Tests.Fakes;
 
-/// <summary>Incoming documents view with the anti-join against <see cref="InMemoryDatabase.Routes"/>.</summary>
+/// <summary>Представление входящих документов с анти-соединением по <see cref="InMemoryDatabase.Routes"/>.</summary>
 public sealed class FakeIncomingDocumentSource(InMemoryDatabase db) : IIncomingDocumentSource
 {
     public List<IncomingDocument> Documents { get; } = [];
 
     /// <summary>
-    /// Returns documents even if they already have an instance, as a replica that read the view
-    /// just before another replica inserted the instance would see them.
+    /// Возвращает документы, даже если у них уже есть экземпляр, — так их увидела бы реплика, прочитавшая представление
+    /// непосредственно перед тем, как другая реплика вставила экземпляр.
     /// </summary>
     public bool Stale { get; set; }
 

@@ -3,7 +3,7 @@ using Invest.Sign.Router.Infrastructure.Files;
 
 namespace Invest.Sign.Router.IntegrationTests.Files;
 
-/// <summary>File system tests; no Docker needed. Each test works in its own temporary directory.</summary>
+/// <summary>Тесты файловой системы; Docker не нужен. Каждый тест работает в собственном временном каталоге.</summary>
 public sealed class FileSystemSignedFileSourceTests : IDisposable
 {
     private readonly string _base = Path.Combine(Path.GetTempPath(), "sgn-files-" + Guid.NewGuid().ToString("N"));
@@ -88,7 +88,7 @@ public sealed class FileSystemSignedFileSourceTests : IDisposable
     [InlineData("../outside.pdf")]
     [InlineData("a/../../outside.pdf")]
     [InlineData(@"..\outside.pdf")]
-    [InlineData("../root-evil/x.pdf")]    // sibling directory sharing the root name prefix
+    [InlineData("../root-evil/x.pdf")]    // соседний каталог с тем же префиксом имени, что и корень
     [InlineData("..")]
     [InlineData(".")]
     [InlineData("")]

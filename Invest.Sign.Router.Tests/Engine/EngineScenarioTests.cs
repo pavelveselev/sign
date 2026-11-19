@@ -10,14 +10,14 @@ using static Invest.Sign.Router.Tests.Engine.EngineHarness;
 
 namespace Invest.Sign.Router.Tests.Engine;
 
-/// <summary>Scenarios 1–13 from stage 2 of the plan, plus related edge cases.</summary>
+/// <summary>Сценарии 1–13 из этапа 2 плана, а также связанные граничные случаи.</summary>
 public class EngineScenarioTests
 {
     private readonly EngineHarness _h = new();
 
     private InMemoryDatabase Db => _h.Db;
 
-    // ---- 1. A multi-stage route reaches COMPLETED. ----
+    // ---- 1. Многоэтапный маршрут доходит до COMPLETED. ----
 
     [Fact]
     public async Task S01_multi_stage_route_completes()
@@ -55,26 +55,26 @@ public class EngineScenarioTests
     {
         _h.Incoming.Add("doc-1", "two-stage");
 
-        var tick = await _h.Engine.TickAsync(CancellationToken.None);   // discover + enter "a"
+        var tick = await _h.Engine.TickAsync(CancellationToken.None);   // обнаружение + вход в "a"
         Assert.Equal(1, tick.Discovery.Created);
         var id = Db.RouteByDoc("doc-1").Id;
         Assert.Equal(StepOutcome.Advanced, Assert.Single(tick.Steps).Outcome);
 
-        await _h.Engine.TickAsync(CancellationToken.None);              // request "a"
+        await _h.Engine.TickAsync(CancellationToken.None);              // запрос "a"
         var a = Db.CurrentStage(id);
         Assert.Equal(StageState.Requested, a.State);
         Assert.Equal(Db.Now + _h.Options.PollInterval, Db.Routes[id].NextAttemptAt);
 
-        tick = await _h.Engine.TickAsync(CancellationToken.None);       // not due yet
+        tick = await _h.Engine.TickAsync(CancellationToken.None);       // ещё не время
         Assert.Empty(tick.Steps);
 
         Db.Sign(a.RequestId);
         Db.Advance(_h.Options.PollInterval);
-        await _h.Engine.TickAsync(CancellationToken.None);              // "a" done
+        await _h.Engine.TickAsync(CancellationToken.None);              // "a" выполнен
         Assert.Equal(StageState.Done, Db.Stages[a.Id].State);
     }
 
-    // ---- 2. A stage whose condition does not hold is skipped. ----
+    // ---- 2. Этап, условие которого не выполняется, пропускается. ----
 
     [Fact]
     public async Task S02_stage_with_false_condition_is_skipped()
@@ -134,7 +134,7 @@ public class EngineScenarioTests
         Assert.Equal(StatusReasons.ConditionError, Db.Routes[id].StatusReason);
     }
 
-    // ---- 3. Rejection completes the route as REJECTED. ----
+    // ---- 3. Отклонение завершает маршрут со статусом REJECTED. ----
 
     [Fact]
     public async Task S03_rejection_rejects_route()
@@ -171,7 +171,7 @@ public class EngineScenarioTests
         Assert.Equal("certificate expired", Db.Stages[a.Id].Reason);
     }
 
-    // ---- 4. Timeout expires the route and cancels the request. ----
+    // ---- 4. Истечение срока завершает маршрут и отменяет запрос. ----
 
     [Fact]
     public async Task S04_timeout_expires_route_and_cancels_request()
@@ -204,7 +204,7 @@ public class EngineScenarioTests
         Assert.False(Db.SignRequests[a.RequestId].Cancelled);
     }
 
-    // ---- 5. A signature that arrived after the deadline but before the check counts. ----
+    // ---- 5. Подпись, пришедшая после срока, но до проверки, засчитывается. ----
 
     [Fact]
     public async Task S05_signature_after_deadline_before_check_counts()
@@ -221,7 +221,7 @@ public class EngineScenarioTests
         Assert.False(Db.SignRequests[a.RequestId].Cancelled);
     }
 
-    // ---- 6. A technical failure is retried with a growing delay; success resets the counter. ----
+    // ---- 6. Техническая ошибка повторяется с растущей задержкой; успех сбрасывает счётчик. ----
 
     [Fact]
     public async Task S06_technical_failure_retries_with_backoff_and_success_resets()
@@ -259,7 +259,7 @@ public class EngineScenarioTests
             new[] { 1, 2, 3, 4, 100 }.Select(n => options.GetRetryDelay(n).TotalSeconds));
     }
 
-    // ---- 7. Exhausted attempts fail the route. ----
+    // ---- 7. Исчерпание попыток завершает маршрут с ошибкой. ----
 
     [Fact]
     public async Task S07_exhausted_attempts_fail_route()
@@ -285,7 +285,7 @@ public class EngineScenarioTests
         Assert.Equal(StepOutcome.NotAcquired, (await _h.StepAsync(id)).Outcome);
     }
 
-    // ---- 8. A lost lease leaves no changes. ----
+    // ---- 8. Потерянная аренда не оставляет изменений. ----
 
     [Fact]
     public async Task S08_lease_lost_when_entering_stage_leaves_no_changes()
@@ -352,7 +352,7 @@ public class EngineScenarioTests
         await _h.StepAdvancedAsync(id);
     }
 
-    // ---- 9. Re-running a PENDING step does not create a second request. ----
+    // ---- 9. Повторный запуск шага PENDING не создаёт второй запрос. ----
 
     [Theory]
     [InlineData(true)]
@@ -363,7 +363,7 @@ public class EngineScenarioTests
         var id = await _h.StartDocumentAsync("doc-1", "two-stage");
         await _h.StepAdvancedAsync(id);
         var stage = Db.CurrentStage(id);
-        Db.FailOn(Ops.UpdateStage);   // fails after create_sign_request in the same transaction
+        Db.FailOn(Ops.UpdateStage);   // ошибка после create_sign_request в той же транзакции
 
         Assert.Equal(StepOutcome.TechnicalFailure, (await _h.StepAsync(id)).Outcome);
         Assert.Equal(StageState.Pending, Db.Stages[stage.Id].State);
@@ -376,7 +376,7 @@ public class EngineScenarioTests
         Assert.Equal(stage.RequestId, Assert.Single(Db.SignRequests).Key);
     }
 
-    // ---- 10. A document discovered by two replicas is created once. ----
+    // ---- 10. Документ, обнаруженный двумя репликами, создаётся один раз. ----
 
     [Fact]
     public async Task S10_document_discovered_by_two_replicas_is_created_once()
@@ -396,7 +396,7 @@ public class EngineScenarioTests
         Assert.Equal([AuditEventTypes.RouteCreated], Db.AuditTypes(route.Id));
     }
 
-    // ---- 11. An unknown document type creates a FAILED instance. ----
+    // ---- 11. Неизвестный тип документа создаёт экземпляр в статусе FAILED. ----
 
     [Fact]
     public async Task S11_unknown_document_type_creates_failed_instance()
@@ -415,7 +415,7 @@ public class EngineScenarioTests
         Assert.Empty((await _h.Engine.DiscoverAsync(CancellationToken.None)).Errors);
     }
 
-    // ---- 12. Missing file is retried; hash mismatch fails without retries. ----
+    // ---- 12. Отсутствующий файл повторяется; несовпадение хеша завершает маршрут без повторов. ----
 
     [Fact]
     public async Task S12_missing_file_is_retried_then_stored()
@@ -476,7 +476,7 @@ public class EngineScenarioTests
         Assert.Empty(Db.Artifacts);
     }
 
-    // ---- 13. Every transition leaves an audit entry. ----
+    // ---- 13. Каждый переход оставляет запись аудита. ----
 
     [Fact]
     public async Task S13_every_transition_is_audited_in_order()
@@ -522,7 +522,7 @@ public class EngineScenarioTests
         Assert.Equal(auditBefore, Db.Audit.Count);
     }
 
-    // ---- Route versions and registry. ----
+    // ---- Версии маршрутов и реестр. ----
 
     [Fact]
     public async Task Missing_route_version_fails_route()
@@ -557,7 +557,7 @@ public class EngineScenarioTests
         Assert.Equal("only", Db.CurrentStage(id2).StageKey);
     }
 
-    // ---- Discovery robustness. ----
+    // ---- Устойчивость обнаружения. ----
 
     [Fact]
     public async Task Source_failure_does_not_stop_processing()

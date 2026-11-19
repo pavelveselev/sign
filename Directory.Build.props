@@ -1,6 +1,6 @@
 <Project>
 
-  <!-- Shared build settings for all projects in the solution. -->
+  <!-- Общие настройки сборки для всех проектов решения. -->
   <PropertyGroup>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

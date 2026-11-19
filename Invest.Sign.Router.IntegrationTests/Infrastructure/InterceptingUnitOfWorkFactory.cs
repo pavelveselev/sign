@@ -4,15 +4,15 @@ using Invest.Sign.Router.Core.Model;
 namespace Invest.Sign.Router.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// Wraps the real Oracle unit of work and calls <see cref="Before"/> before selected store writes,
-/// so a test can steal a lease or inject a failure in the middle of a real transaction.
+/// Оборачивает реальную единицу работы Oracle и вызывает <see cref="Before"/> перед выбранными записями в хранилище,
+/// чтобы тест мог перехватить аренду или внедрить ошибку посреди реальной транзакции.
 /// </summary>
 public sealed class InterceptingUnitOfWorkFactory(IUnitOfWorkFactory inner) : IUnitOfWorkFactory
 {
     public const string UpdateAndRelease = nameof(UpdateAndRelease);
     public const string UpdateStage = nameof(UpdateStage);
 
-    /// <summary>Called with the operation name; may throw. Reset it to null inside to fire once.</summary>
+    /// <summary>Вызывается с именем операции; может выбросить исключение. Сбросьте в null внутри, чтобы сработало один раз.</summary>
     public Func<string, Task>? Before { get; set; }
 
     public async Task<IUnitOfWork> BeginAsync(CancellationToken cancellationToken) =>

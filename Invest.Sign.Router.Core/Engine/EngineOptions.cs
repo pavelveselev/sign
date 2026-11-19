@@ -1,30 +1,30 @@
 namespace Invest.Sign.Router.Core.Engine;
 
-/// <summary>Engine settings. Bound from configuration and validated at startup by the host.</summary>
+/// <summary>Настройки движка. Привязываются из конфигурации и проверяются хостом при запуске.</summary>
 public sealed class EngineOptions
 {
-    /// <summary>Lease length. Must exceed the longest possible step, otherwise another replica may take over.</summary>
+    /// <summary>Длительность аренды. Должна превышать самый долгий возможный шаг, иначе её может перехватить другая реплика.</summary>
     public TimeSpan LeaseDuration { get; set; } = TimeSpan.FromMinutes(5);
 
-    /// <summary>How often a requested stage is polled for its result.</summary>
+    /// <summary>Как часто опрашивается результат этапа в состоянии REQUESTED.</summary>
     public TimeSpan PollInterval { get; set; } = TimeSpan.FromMinutes(1);
 
-    /// <summary>Max route instances processed per tick.</summary>
+    /// <summary>Максимум экземпляров маршрутов, обрабатываемых за такт.</summary>
     public int BatchSize { get; set; } = 20;
 
-    /// <summary>Max new documents picked up per tick.</summary>
+    /// <summary>Максимум новых документов, забираемых за такт.</summary>
     public int DiscoveryBatchSize { get; set; } = 100;
 
-    /// <summary>Consecutive technical failures after which the route fails with <c>ATTEMPTS_EXHAUSTED</c>.</summary>
+    /// <summary>Число подряд идущих технических ошибок, после которого маршрут завершается с <c>ATTEMPTS_EXHAUSTED</c>.</summary>
     public int MaxAttempts { get; set; } = 10;
 
-    /// <summary>Delay after the first technical failure; doubles with each next one.</summary>
+    /// <summary>Задержка после первой технической ошибки; удваивается с каждой следующей.</summary>
     public TimeSpan RetryBaseDelay { get; set; } = TimeSpan.FromSeconds(30);
 
-    /// <summary>Upper bound of the retry delay.</summary>
+    /// <summary>Верхняя граница задержки повтора.</summary>
     public TimeSpan RetryMaxDelay { get; set; } = TimeSpan.FromMinutes(30);
 
-    /// <summary>Returns validation errors, empty when the options are valid.</summary>
+    /// <summary>Возвращает ошибки проверки; пусто, если настройки корректны.</summary>
     public IReadOnlyList<string> Validate()
     {
         var errors = new List<string>();
@@ -66,12 +66,12 @@ public sealed class EngineOptions
         return errors;
     }
 
-    /// <summary>Delay before the next attempt after <paramref name="attempts"/> consecutive failures (1-based).</summary>
+    /// <summary>Задержка перед следующей попыткой после <paramref name="attempts"/> подряд идущих ошибок (нумерация с 1).</summary>
     public TimeSpan GetRetryDelay(int attempts)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(attempts, 1);
 
-        // Cap the exponent to avoid overflow; the max delay bounds the result anyway.
+        // Ограничиваем показатель степени, чтобы избежать переполнения; результат всё равно ограничен максимальной задержкой.
         var factor = Math.Pow(2, Math.Min(attempts - 1, 30));
         var delay = TimeSpan.FromTicks((long)Math.Min(RetryBaseDelay.Ticks * factor, RetryMaxDelay.Ticks));
         return delay;

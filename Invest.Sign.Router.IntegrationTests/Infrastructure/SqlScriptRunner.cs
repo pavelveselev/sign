@@ -5,9 +5,9 @@ using Oracle.ManagedDataAccess.Client;
 namespace Invest.Sign.Router.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// Runs the numbered db/ scripts the way SQL*Plus would: SQL statements end with <c>;</c>,
-/// PL/SQL units end with <c>/</c> on its own line, <c>&amp;&amp;name</c> substitution variables are replaced.
-/// Only the subset of SQL*Plus syntax used by the repository scripts is supported.
+/// Выполняет пронумерованные скрипты db/ так же, как SQL*Plus: SQL-операторы заканчиваются на <c>;</c>,
+/// блоки PL/SQL — на <c>/</c> в отдельной строке, подстановочные переменные <c>&amp;&amp;name</c> заменяются.
+/// Поддерживается только подмножество синтаксиса SQL*Plus, используемое скриптами репозитория.
 /// </summary>
 public static partial class SqlScriptRunner
 {
@@ -36,7 +36,7 @@ public static partial class SqlScriptRunner
             }
         }
 
-        // CREATE PROCEDURE with compilation errors may succeed with a warning; catch it here.
+        // CREATE PROCEDURE с ошибками компиляции может завершиться успешно с предупреждением; перехватываем это здесь.
         await using var check = connection.CreateCommand();
         check.CommandText = "SELECT LISTAGG(object_name, ', ') FROM user_objects WHERE status = 'INVALID'";
         if (await check.ExecuteScalarAsync() is string invalid && invalid.Length > 0)

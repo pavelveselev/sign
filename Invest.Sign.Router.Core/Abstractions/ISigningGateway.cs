@@ -3,18 +3,18 @@ using Invest.Sign.Router.Core.Model;
 namespace Invest.Sign.Router.Core.Abstractions;
 
 /// <summary>
-/// Signing software contract (<c>db/contract</c>): <c>create_sign_request</c>, the sign requests view
-/// and <c>cancel_sign_request</c>. Calls run in the transaction of the owning <see cref="IUnitOfWork"/>.
+/// Контракт ПО подписания (<c>db/contract</c>): <c>create_sign_request</c>, представление запросов на подписание
+/// и <c>cancel_sign_request</c>. Вызовы выполняются в транзакции владеющего <see cref="IUnitOfWork"/>.
 /// </summary>
 public interface ISigningGateway
 {
-    /// <summary>Creates a request. Idempotent by request id.</summary>
+    /// <summary>Создаёт запрос. Идемпотентен по идентификатору запроса.</summary>
     Task CreateRequestAsync(SignRequest request, CancellationToken cancellationToken);
 
-    /// <summary>Current state of a request, null if the request does not exist.</summary>
+    /// <summary>Текущее состояние запроса; null, если запрос не существует.</summary>
     Task<SignRequestResult?> GetRequestAsync(string requestId, CancellationToken cancellationToken);
 
-    /// <summary>Cancels a request. Idempotent; no-op for requests in a final status.</summary>
+    /// <summary>Отменяет запрос. Идемпотентен; для запросов в финальном статусе ничего не делает.</summary>
     Task CancelRequestAsync(string requestId, CancellationToken cancellationToken);
 }
 

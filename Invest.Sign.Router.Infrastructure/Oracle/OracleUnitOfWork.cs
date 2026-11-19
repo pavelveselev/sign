@@ -4,7 +4,7 @@ using Oracle.ManagedDataAccess.Client;
 
 namespace Invest.Sign.Router.Infrastructure.Oracle;
 
-/// <summary>Opens a pooled connection and a read-committed transaction per unit of work.</summary>
+/// <summary>Открывает соединение из пула и транзакцию read committed на каждую единицу работы.</summary>
 public sealed class OracleUnitOfWorkFactory : IUnitOfWorkFactory
 {
     private readonly OracleOptions _options;
@@ -33,7 +33,7 @@ public sealed class OracleUnitOfWorkFactory : IUnitOfWorkFactory
     }
 }
 
-/// <summary>One Oracle transaction. The store and the gateway share its connection.</summary>
+/// <summary>Одна транзакция Oracle. Хранилище и шлюз используют её соединение совместно.</summary>
 internal sealed class OracleUnitOfWork : IUnitOfWork
 {
     private readonly OracleSession _session;
@@ -62,7 +62,7 @@ internal sealed class OracleUnitOfWork : IUnitOfWork
         {
             if (!_committed)
             {
-                // Rollback failures (e.g. broken connection) are ignored: the server rolls back on disconnect.
+                // Ошибки отката (например, разорванное соединение) игнорируются: сервер откатывает транзакцию при отключении.
                 try
                 {
                     await _session.Transaction.RollbackAsync();

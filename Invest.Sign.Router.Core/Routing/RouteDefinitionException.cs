@@ -1,6 +1,6 @@
 namespace Invest.Sign.Router.Core.Routing;
 
-/// <summary>A route definition or a set of route definitions is invalid.</summary>
+/// <summary>Определение маршрута или набор определений маршрутов некорректен.</summary>
 public sealed class RouteDefinitionException : Exception
 {
     public RouteDefinitionException(string subject, IReadOnlyList<string> errors)

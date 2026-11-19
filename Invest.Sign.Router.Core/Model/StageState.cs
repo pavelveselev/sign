@@ -1,12 +1,12 @@
 namespace Invest.Sign.Router.Core.Model;
 
-/// <summary>State of a single stage instance.</summary>
+/// <summary>Состояние отдельного экземпляра этапа.</summary>
 public enum StageState
 {
-    /// <summary>Stage entered, signing request not created yet.</summary>
+    /// <summary>Вход в этап выполнен, запрос на подписание ещё не создан.</summary>
     Pending,
 
-    /// <summary>Signing request created, waiting for the result.</summary>
+    /// <summary>Запрос на подписание создан, ожидается результат.</summary>
     Requested,
 
     Done,
@@ -20,7 +20,7 @@ public static class StageStateExtensions
     public static bool IsTerminal(this StageState state) =>
         state is not (StageState.Pending or StageState.Requested);
 
-    /// <summary>Value stored in <c>SGN_STAGE_INSTANCE.state</c>.</summary>
+    /// <summary>Значение, хранимое в <c>SGN_STAGE_INSTANCE.state</c>.</summary>
     public static string ToCode(this StageState state) => state switch
     {
         StageState.Pending => "PENDING",

@@ -1,11 +1,11 @@
 namespace Invest.Sign.Router.Core.Engine;
 
-/// <summary>Values of <c>SGN_AUDIT_EVENT.event_type</c>.</summary>
+/// <summary>Значения <c>SGN_AUDIT_EVENT.event_type</c>.</summary>
 public static class AuditEventTypes
 {
     public const string RouteCreated = "ROUTE_CREATED";
 
-    /// <summary>Route reached a terminal status. Payload: status, reason.</summary>
+    /// <summary>Маршрут достиг терминального статуса. Данные: статус, причина.</summary>
     public const string RouteFinished = "ROUTE_FINISHED";
 
     public const string StageSkipped = "STAGE_SKIPPED";
@@ -16,6 +16,6 @@ public static class AuditEventTypes
     public const string StageExpired = "STAGE_EXPIRED";
     public const string StageFailed = "STAGE_FAILED";
 
-    /// <summary>A technical failure was recorded and a retry scheduled.</summary>
+    /// <summary>Зафиксирована техническая ошибка и запланирован повтор.</summary>
     public const string TechnicalFailure = "TECHNICAL_FAILURE";
 }

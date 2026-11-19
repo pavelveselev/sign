@@ -6,19 +6,19 @@ using Invest.Sign.Router.Tests.Fakes;
 
 namespace Invest.Sign.Router.Tests.Engine;
 
-/// <summary>Wires the engine to in-memory fakes and offers shortcuts for driving a route.</summary>
+/// <summary>Связывает движок с фейками в памяти и предоставляет сокращения для управления маршрутом.</summary>
 public sealed class EngineHarness
 {
     public const string ReplicaA = "replica-a";
     public const string ReplicaB = "replica-b";
 
-    /// <summary>Manual stage "a" (1 day), automatic stage "b" (1 hour).</summary>
+    /// <summary>Ручной этап "a" (1 день), автоматический этап "b" (1 час).</summary>
     public static readonly RouteDefinition TwoStage = Route.For("two-stage", 1)
         .Stage("a", s => s.Manual("alice").Timeout(TimeSpan.FromDays(1)))
         .Stage("b", s => s.Automatic("seal").Timeout(TimeSpan.FromHours(1)))
         .Build();
 
-    /// <summary>Stage "b" is entered only when attribute <c>needs-b</c> is true.</summary>
+    /// <summary>В этап "b" входим, только если атрибут <c>needs-b</c> равен true.</summary>
     public static readonly RouteDefinition Conditional = Route.For("conditional", 1)
         .Stage("a", s => s.Manual("alice").Timeout(TimeSpan.FromDays(1)))
         .Stage("b", s => s.Manual("bob").When(d => d.GetBoolean("needs-b")).Timeout(TimeSpan.FromDays(1)))
@@ -38,7 +38,7 @@ public sealed class EngineHarness
 
     public FakeSignedFileSource Files { get; } = new();
 
-    /// <summary>Can be changed until <see cref="Engine"/> is first used.</summary>
+    /// <summary>Можно менять до первого использования <see cref="Engine"/>.</summary>
     public EngineOptions Options { get; } = new()
     {
         LeaseDuration = TimeSpan.FromMinutes(5),
@@ -59,7 +59,7 @@ public sealed class EngineHarness
         new(new FakeUnitOfWorkFactory(Db), incoming ?? Incoming, Files, new SigningStageHandler(),
             registry ?? Registry, Options, replicaId);
 
-    /// <summary>Adds an incoming document and runs discovery. Returns the route instance id.</summary>
+    /// <summary>Добавляет входящий документ и запускает обнаружение. Возвращает идентификатор экземпляра маршрута.</summary>
     public async Task<long> StartDocumentAsync(string docId, string docType, string? attributes = null)
     {
         Incoming.Add(docId, docType, attributes);
@@ -77,7 +77,7 @@ public sealed class EngineHarness
         Assert.True(result.Outcome == StepOutcome.Advanced, $"Expected Advanced, got {result.Outcome}: {result.Error}");
     }
 
-    /// <summary>Enters the next stage and creates its signing request. Returns the stage in REQUESTED.</summary>
+    /// <summary>Входит в следующий этап и создаёт его запрос на подписание. Возвращает этап в состоянии REQUESTED.</summary>
     public async Task<StageInstance> EnterAndRequestNextStageAsync(long routeId)
     {
         await StepAdvancedAsync(routeId);

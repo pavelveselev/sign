@@ -1,4 +1,4 @@
--- SGN_AUDIT_EVENT: insert-only journal. Written in the same transaction as the transition it describes.
+-- SGN_AUDIT_EVENT: журнал только для вставки. Записывается в той же транзакции, что и описываемый переход.
 
 CREATE TABLE sgn_audit_event (
     id                 NUMBER(19)               GENERATED ALWAYS AS IDENTITY,

@@ -12,8 +12,8 @@ public sealed class OracleCollection : ICollectionFixture<OracleFixture>
 }
 
 /// <summary>
-/// Oracle in a container with two schemas: <c>SGN_EXT</c> (stub of the external side, db/stub) and
-/// <c>SGN_SERVICE</c> (service tables, db/service), both created by the repository scripts.
+/// Oracle в контейнере с двумя схемами: <c>SGN_EXT</c> (заглушка внешней стороны, db/stub) и
+/// <c>SGN_SERVICE</c> (таблицы сервиса, db/service); обе создаются скриптами репозитория.
 /// </summary>
 public sealed class OracleFixture : IAsyncLifetime
 {
@@ -91,7 +91,7 @@ public sealed class OracleFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>Deletes all rows from the service and stub tables.</summary>
+    /// <summary>Удаляет все строки из таблиц сервиса и заглушки.</summary>
     public async Task ResetAsync()
     {
         await using (var service = new OracleConnection(ServiceConnectionString))
@@ -118,14 +118,14 @@ public sealed class OracleFixture : IAsyncLifetime
             """);
     }
 
-    /// <summary>Runs a statement as the external side and commits.</summary>
+    /// <summary>Выполняет оператор от имени внешней стороны и фиксирует транзакцию.</summary>
     public async Task ExecuteExternalAsync(string sql, object? parameters = null)
     {
         await using var connection = new OracleConnection(ExternalConnectionString);
         await connection.ExecuteAsync(sql, parameters);
     }
 
-    /// <summary>Runs a statement as the service schema owner and commits.</summary>
+    /// <summary>Выполняет оператор от имени владельца схемы сервиса и фиксирует транзакцию.</summary>
     public async Task ExecuteServiceAsync(string sql, object? parameters = null)
     {
         await using var connection = new OracleConnection(ServiceConnectionString);

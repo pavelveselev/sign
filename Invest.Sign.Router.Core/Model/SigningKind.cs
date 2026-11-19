@@ -1,6 +1,6 @@
 namespace Invest.Sign.Router.Core.Model;
 
-/// <summary>How the signing software signs: automatically or by an employee. Maps to <c>p_kind</c>.</summary>
+/// <summary>Как подписывает ПО подписания: автоматически или сотрудником. Соответствует <c>p_kind</c>.</summary>
 public enum SigningKind
 {
     Auto,

@@ -3,19 +3,19 @@ using Invest.Sign.Router.Core.Routing;
 namespace Invest.Sign.Router.Core.Routes;
 
 /// <summary>
-/// Sample routes. Real document types and routes are not known yet (open question 9);
-/// replace these when they are. Add new versions next to old ones, do not edit a version
-/// that may have started documents.
+/// Примеры маршрутов. Реальные типы документов и маршруты пока неизвестны (открытый вопрос 9);
+/// замените эти, когда они появятся. Новые версии добавляйте рядом со старыми, не редактируйте версию,
+/// по которой могли быть запущены документы.
 /// </summary>
 public static class SampleRoutes
 {
-    /// <summary>Automatic signing only: organization seal.</summary>
+    /// <summary>Только автоматическое подписание: печать организации.</summary>
     public static RouteDefinition InvoiceV1 { get; } =
         Route.For("invoice", version: 1)
             .Stage("org-seal", s => s.Automatic(signer: "org-seal").Timeout(TimeSpan.FromHours(1)))
             .Build();
 
-    /// <summary>Mixed route: manual review, automatic seal, director approval for large amounts.</summary>
+    /// <summary>Смешанный маршрут: ручная проверка, автоматическая печать, согласование директора для крупных сумм.</summary>
     public static RouteDefinition ContractV1 { get; } =
         Route.For("contract", version: 1)
             .Stage("legal-review", s => s.Manual(signer: "legal").Timeout(TimeSpan.FromDays(3)))
