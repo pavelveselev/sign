@@ -59,9 +59,17 @@ public sealed class SigningEngine
     /// Обнаруживает новые документы, затем последовательно обрабатывает готовые экземпляры.
     /// Отмена проверяется между экземплярами; выполняемый шаг получает тот же токен.
     /// </summary>
-    public async Task<TickResult> TickAsync(CancellationToken cancellationToken)
+    public Task<TickResult> TickAsync(CancellationToken cancellationToken) =>
+        TickAsync(cancellationToken, cancellationToken);
+
+    /// <summary>
+    /// Как <see cref="TickAsync(CancellationToken)"/>, но с раздельными токенами для корректной остановки:
+    /// <paramref name="stopping"/> лишь запрещает брать новые документы и экземпляры, а выполняемый шаг
+    /// прерывается только <paramref name="cancellationToken"/>.
+    /// </summary>
+    public async Task<TickResult> TickAsync(CancellationToken stopping, CancellationToken cancellationToken)
     {
-        var discovery = await DiscoverAsync(cancellationToken);
+        var discovery = await DiscoverAsync(stopping, cancellationToken);
 
         IReadOnlyList<long> candidates;
         await using (var uow = await _unitOfWork.BeginAsync(cancellationToken))
@@ -72,7 +80,7 @@ public sealed class SigningEngine
         var steps = new List<StepResult>(candidates.Count);
         foreach (var routeId in candidates)
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (stopping.IsCancellationRequested || cancellationToken.IsCancellationRequested)
             {
                 break;
             }
@@ -87,7 +95,10 @@ public sealed class SigningEngine
     /// Создаёт экземпляры маршрутов для новых входящих документов. Документ, одновременно вставленный другой
     /// репликой, считается уже существующим. Документ неизвестного типа получает экземпляр в статусе <c>FAILED</c>.
     /// </summary>
-    public async Task<DiscoveryResult> DiscoverAsync(CancellationToken cancellationToken)
+    public Task<DiscoveryResult> DiscoverAsync(CancellationToken cancellationToken) =>
+        DiscoverAsync(cancellationToken, cancellationToken);
+
+    private async Task<DiscoveryResult> DiscoverAsync(CancellationToken stopping, CancellationToken cancellationToken)
     {
         IReadOnlyList<IncomingDocument> documents;
         try
@@ -104,7 +115,7 @@ public sealed class SigningEngine
         var errors = new List<(string, Exception)>();
         foreach (var document in documents)
         {
-            if (cancellationToken.IsCancellationRequested)
+            if (stopping.IsCancellationRequested || cancellationToken.IsCancellationRequested)
             {
                 break;
             }
