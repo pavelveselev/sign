@@ -14,5 +14,6 @@
   <ItemGroup>
     <ProjectReference Include="..\Invest.Sign.Router.Core\Invest.Sign.Router.Core.csproj" />
     <ProjectReference Include="..\Invest.Sign.Router.Infrastructure\Invest.Sign.Router.Infrastructure.csproj" />
+    <ProjectReference Include="..\Invest.Sign.Router.OracleDb\Invest.Sign.Router.OracleDb.csproj" />
   </ItemGroup>
 </Project>

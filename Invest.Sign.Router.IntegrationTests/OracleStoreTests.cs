@@ -1,6 +1,6 @@
 using Invest.Sign.Router.Core.Abstractions;
 using Invest.Sign.Router.Core.Model;
-using Invest.Sign.Router.Infrastructure.Oracle;
+using Invest.Sign.Router.OracleDb;
 using Invest.Sign.Router.IntegrationTests.Infrastructure;
 
 namespace Invest.Sign.Router.IntegrationTests;

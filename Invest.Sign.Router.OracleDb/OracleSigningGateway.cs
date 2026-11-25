@@ -1,7 +1,7 @@
 using Invest.Sign.Router.Core.Abstractions;
 using Invest.Sign.Router.Core.Model;
 
-namespace Invest.Sign.Router.Infrastructure.Oracle;
+namespace Invest.Sign.Router.OracleDb;
 
 /// <summary>
 /// <see cref="ISigningGateway"/> поверх внешнего контракта (db/contract): процедуры вызываются внутри

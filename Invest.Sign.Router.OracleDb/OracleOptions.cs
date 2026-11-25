@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace Invest.Sign.Router.Infrastructure.Oracle;
+namespace Invest.Sign.Router.OracleDb;
 
 /// <summary>Настройки Oracle. Учётные данные берутся из конфигурации/секретов, никогда не из репозитория.</summary>
 public sealed partial class OracleOptions

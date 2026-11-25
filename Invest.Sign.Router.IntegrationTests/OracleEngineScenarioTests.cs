@@ -3,7 +3,7 @@ using System.Text;
 using Invest.Sign.Router.Core.Abstractions;
 using Invest.Sign.Router.Core.Engine;
 using Invest.Sign.Router.Core.Routing;
-using Invest.Sign.Router.Infrastructure.Oracle;
+using Invest.Sign.Router.OracleDb;
 using Invest.Sign.Router.IntegrationTests.Infrastructure;
 using Oracle.ManagedDataAccess.Client;
 

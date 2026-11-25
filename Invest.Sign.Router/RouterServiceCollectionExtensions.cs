@@ -3,7 +3,7 @@ using Invest.Sign.Router.Core.Engine;
 using Invest.Sign.Router.Core.Routes;
 using Invest.Sign.Router.Core.Routing;
 using Invest.Sign.Router.Infrastructure.Files;
-using Invest.Sign.Router.Infrastructure.Oracle;
+using Invest.Sign.Router.OracleDb;
 using Microsoft.Extensions.Options;
 
 namespace Invest.Sign.Router;

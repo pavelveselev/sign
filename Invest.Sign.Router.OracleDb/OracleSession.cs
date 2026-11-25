@@ -2,7 +2,7 @@ using System.Data;
 using Dapper;
 using Oracle.ManagedDataAccess.Client;
 
-namespace Invest.Sign.Router.Infrastructure.Oracle;
+namespace Invest.Sign.Router.OracleDb;
 
 /// <summary>
 /// Соединение с открытой транзакцией, общее для хранилища и шлюза одной единицы работы.

@@ -5,5 +5,6 @@
   </Folder>
   <Project Path="Invest.Sign.Router.Core/Invest.Sign.Router.Core.csproj" />
   <Project Path="Invest.Sign.Router.Infrastructure/Invest.Sign.Router.Infrastructure.csproj" />
+  <Project Path="Invest.Sign.Router.OracleDb/Invest.Sign.Router.OracleDb.csproj" />
   <Project Path="Invest.Sign.Router/Invest.Sign.Router.csproj" />
 </Solution>

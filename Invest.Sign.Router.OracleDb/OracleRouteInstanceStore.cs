@@ -2,7 +2,7 @@ using Invest.Sign.Router.Core.Abstractions;
 using Invest.Sign.Router.Core.Model;
 using Oracle.ManagedDataAccess.Client;
 
-namespace Invest.Sign.Router.Infrastructure.Oracle;
+namespace Invest.Sign.Router.OracleDb;
 
 /// <summary><see cref="IRouteInstanceStore"/> поверх таблиц <c>SGN_*</c> (db/service).</summary>
 internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteInstanceStore

@@ -2,7 +2,7 @@ using Dapper;
 using Invest.Sign.Router.Core.Abstractions;
 using Oracle.ManagedDataAccess.Client;
 
-namespace Invest.Sign.Router.Infrastructure.Oracle;
+namespace Invest.Sign.Router.OracleDb;
 
 /// <summary>
 /// Читает новые документы из внешнего представления входящих документов: строки без экземпляра маршрута (анти-соединение),

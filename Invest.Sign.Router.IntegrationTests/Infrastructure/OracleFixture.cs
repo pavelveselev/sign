@@ -1,5 +1,5 @@
 using Dapper;
-using Invest.Sign.Router.Infrastructure.Oracle;
+using Invest.Sign.Router.OracleDb;
 using Oracle.ManagedDataAccess.Client;
 using Testcontainers.Oracle;
 

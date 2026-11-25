@@ -2,7 +2,7 @@ using System.Data;
 using Invest.Sign.Router.Core.Abstractions;
 using Oracle.ManagedDataAccess.Client;
 
-namespace Invest.Sign.Router.Infrastructure.Oracle;
+namespace Invest.Sign.Router.OracleDb;
 
 /// <summary>Открывает соединение из пула и транзакцию read committed на каждую единицу работы.</summary>
 public sealed class OracleUnitOfWorkFactory : IUnitOfWorkFactory
