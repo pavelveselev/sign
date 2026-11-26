@@ -37,7 +37,8 @@ internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteIn
         SYS_EXTRACT_UTC(requested_at) AS RequestedAt,
         SYS_EXTRACT_UTC(deadline_at)  AS DeadlineAt,
         SYS_EXTRACT_UTC(finished_at)  AS FinishedAt,
-        reason                        AS Reason
+        reason                        AS Reason,
+        data                          AS Data
         """;
 
     /// <summary>Должно совпадать с размером столбца <c>sgn_stage_instance.reason</c>.</summary>
@@ -196,7 +197,8 @@ internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteIn
                    requested_at = FROM_TZ(:requested_at, '+00:00'),
                    deadline_at = FROM_TZ(:deadline_at, '+00:00'),
                    finished_at = FROM_TZ(:finished_at, '+00:00'),
-                   reason = :reason
+                   reason = :reason,
+                   data = :data
              WHERE id = :id
             """,
             cancellationToken,
@@ -205,6 +207,7 @@ internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteIn
             P.Utc("deadline_at", stage.DeadlineAt),
             P.Utc("finished_at", stage.FinishedAt),
             P.Str("reason", Truncate(stage.Reason, MaxReasonLength)),
+            P.Clob("data", stage.Data),
             P.Long("id", stage.Id));
 
         if (rows != 1)
@@ -296,6 +299,7 @@ internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteIn
         public DateTime? DeadlineAt { get; set; }
         public DateTime? FinishedAt { get; set; }
         public string? Reason { get; set; }
+        public string? Data { get; set; }
 
         public StageInstance ToModel() => new()
         {
@@ -308,6 +312,7 @@ internal sealed class OracleRouteInstanceStore(OracleSession session) : IRouteIn
             DeadlineAt = OracleTime.FromUtc(DeadlineAt),
             FinishedAt = OracleTime.FromUtc(FinishedAt),
             Reason = Reason,
+            Data = Data,
         };
     }
 }

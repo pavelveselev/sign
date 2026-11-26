@@ -22,4 +22,7 @@ public sealed record StageInstance
 
     /// <summary>Причина отклонения или ошибки.</summary>
     public string? Reason { get; init; }
+
+    /// <summary>Собственные данные обработчика этапа (например, идентификатор во внешней системе). Формат задаёт обработчик.</summary>
+    public string? Data { get; init; }
 }

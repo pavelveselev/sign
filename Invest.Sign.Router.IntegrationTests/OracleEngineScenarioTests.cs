@@ -239,7 +239,8 @@ public sealed class OracleEngineScenarioTests(OracleFixture db) : IAsyncLifetime
     }
 
     private SigningEngine CreateEngine(string replicaId) =>
-        new(_unitOfWork, new OracleIncomingDocumentSource(db.Options), _files, new SigningStageHandler(),
+        new(_unitOfWork, new OracleIncomingDocumentSource(db.Options), _files,
+            new StageHandlerRegistry(new SigningStageHandler(_unitOfWork)),
             new RouteRegistry([TwoStage]),
             new EngineOptions { PollInterval = TimeSpan.FromSeconds(1), MaxAttempts = 3 },
             replicaId);

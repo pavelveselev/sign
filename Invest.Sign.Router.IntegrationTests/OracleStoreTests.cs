@@ -196,6 +196,7 @@ public sealed class OracleStoreTests(OracleFixture db) : IAsyncLifetime
                 Id = stageId, RouteInstanceId = id, StageKey = "legal", RequestId = "req-1",
                 State = StageState.Done, RequestedAt = now, DeadlineAt = now.AddDays(1), FinishedAt = now,
                 Reason = new string('x', 3000),
+                Data = $$"""{"id":"{{new string('d', 5000)}}"}""",
             }, default);
             await uow.Store.SaveArtifactAsync(new NewSignedArtifact(stageId, content, "abc", "out/a.pdf"), default);
             await uow.Store.AppendAuditAsync(new AuditEntry(id, stageId, "STAGE_DONE", """{"a":1}""", "replica-a"), default);
@@ -204,6 +205,7 @@ public sealed class OracleStoreTests(OracleFixture db) : IAsyncLifetime
             Assert.Equal(StageState.Done, stage.State);
             Assert.Equal(now.AddDays(1), stage.DeadlineAt);
             Assert.Equal(2000, stage.Reason!.Length);
+            Assert.Equal($$"""{"id":"{{new string('d', 5000)}}"}""", stage.Data);
 
             // Освобождено без фиксации: всё вышеперечисленное должно откатиться.
         }

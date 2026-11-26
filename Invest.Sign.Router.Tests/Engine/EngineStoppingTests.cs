@@ -1,6 +1,7 @@
 using Invest.Sign.Router.Core.Abstractions;
 using Invest.Sign.Router.Core.Engine;
 using Invest.Sign.Router.Core.Model;
+using Invest.Sign.Router.Core.Routing;
 using Invest.Sign.Router.Tests.Fakes;
 using static Invest.Sign.Router.Tests.Engine.EngineHarness;
 
@@ -20,9 +21,10 @@ public class EngineStoppingTests
         await _h.StepAdvancedAsync(second);
 
         using var stopping = new CancellationTokenSource();
-        var handler = new StoppingHandler(stopping);
+        var handler = new StoppingHandler(stopping, new SigningStageHandler(new FakeUnitOfWorkFactory(_h.Db)));
+        var handlers = new StageHandlerRegistry().Add(typeof(SigningStageHandler), handler);
         var engine = new SigningEngine(
-            new FakeUnitOfWorkFactory(_h.Db), _h.Incoming, _h.Files, handler, _h.Registry, _h.Options, ReplicaA);
+            new FakeUnitOfWorkFactory(_h.Db), _h.Incoming, _h.Files, handlers, new RouteRegistry([TwoStage]), _h.Options, ReplicaA);
 
         var tick = await engine.TickAsync(stopping.Token, CancellationToken.None);
 
@@ -51,23 +53,22 @@ public class EngineStoppingTests
     }
 
     /// <summary>Подаёт сигнал остановки в момент создания запроса на подписание, то есть посреди шага.</summary>
-    private sealed class StoppingHandler(CancellationTokenSource stopping) : IStageHandler
+    private sealed class StoppingHandler(CancellationTokenSource stopping, IStageHandler inner) : IStageHandler
     {
-        private readonly SigningStageHandler _inner = new();
-
         public bool SawCancellation { get; private set; }
 
-        public async Task StartAsync(ISigningGateway gateway, SignRequest request, CancellationToken cancellationToken)
+        public Task<StageOutcome> StartAsync(StageContext stage, CancellationToken cancellationToken) =>
+            inner.StartAsync(stage, cancellationToken);
+
+        public Task<StageOutcome> CheckAsync(StageContext stage, CancellationToken cancellationToken) =>
+            inner.CheckAsync(stage, cancellationToken);
+
+        public async Task OnTransitionAsync(
+            StageTransition transition, IUnitOfWork unitOfWork, CancellationToken cancellationToken)
         {
             await stopping.CancelAsync();
             SawCancellation |= cancellationToken.IsCancellationRequested;
-            await _inner.StartAsync(gateway, request, cancellationToken);
+            await inner.OnTransitionAsync(transition, unitOfWork, cancellationToken);
         }
-
-        public Task<SignRequestResult> CheckAsync(ISigningGateway gateway, string requestId, CancellationToken cancellationToken) =>
-            _inner.CheckAsync(gateway, requestId, cancellationToken);
-
-        public Task CancelAsync(ISigningGateway gateway, string requestId, CancellationToken cancellationToken) =>
-            _inner.CancelAsync(gateway, requestId, cancellationToken);
     }
 }

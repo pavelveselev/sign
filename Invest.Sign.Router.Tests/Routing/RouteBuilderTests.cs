@@ -89,13 +89,13 @@ public class RouteBuilderTests
     }
 
     [Fact]
-    public void Rejects_stage_without_signing_kind()
+    public void Rejects_stage_without_handler()
     {
         var ex = Assert.Throws<RouteDefinitionException>(() => Route.For("contract", 1)
             .Stage("review", s => s.Timeout(TimeSpan.FromHours(1)))
             .Build());
 
-        Assert.Contains(ex.Errors, e => e.Contains("signing kind is not set"));
+        Assert.Contains(ex.Errors, e => e.Contains("handler is not set"));
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class RouteBuilderTests
                 .When(_ => true).When(_ => false))
             .Build());
 
-        Assert.Contains(ex.Errors, e => e.Contains("signing kind is set more than once"));
+        Assert.Contains(ex.Errors, e => e.Contains("handler is set more than once"));
         Assert.Contains(ex.Errors, e => e.Contains("timeout is set more than once"));
         Assert.Contains(ex.Errors, e => e.Contains("condition is set more than once"));
     }

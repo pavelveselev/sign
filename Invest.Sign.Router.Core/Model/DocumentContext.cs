@@ -35,6 +35,9 @@ public sealed class DocumentContext
     /// <summary>Хеш исходного документа, может отсутствовать (открытый вопрос 4).</summary>
     public string? ContentHash { get; }
 
+    /// <summary>Атрибуты в виде JSON-объекта; <c>{}</c>, если атрибутов нет.</summary>
+    public string AttributesJson => _attributes.GetRawText();
+
     public bool Has(string name) =>
         _attributes.TryGetProperty(name, out var value) && value.ValueKind != JsonValueKind.Null;
 

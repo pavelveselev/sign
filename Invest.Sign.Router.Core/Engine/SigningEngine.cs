@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Invest.Sign.Router.Core.Abstractions;
 using Invest.Sign.Router.Core.Model;
 using Invest.Sign.Router.Core.Routing;
@@ -19,18 +20,28 @@ public sealed class SigningEngine
 {
     private const int MaxErrorLength = 2000;
 
+    private static readonly JsonSerializerOptions SettingsJson = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.SnakeCaseUpper) },
+    };
+
     private readonly IUnitOfWorkFactory _unitOfWork;
     private readonly IIncomingDocumentSource _incoming;
     private readonly ISignedFileSource _files;
-    private readonly IStageHandler _handler;
+    private readonly IStageHandlerResolver _handlers;
     private readonly RouteRegistry _routes;
     private readonly EngineOptions _options;
 
+    /// <exception cref="ArgumentException">Настройки некорректны.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// Обработчик какого-либо этапа не зарегистрирован или отклонил настройки этапа.
+    /// </exception>
     public SigningEngine(
         IUnitOfWorkFactory unitOfWork,
         IIncomingDocumentSource incoming,
         ISignedFileSource files,
-        IStageHandler handler,
+        IStageHandlerResolver handlers,
         RouteRegistry routes,
         EngineOptions options,
         string replicaId)
@@ -43,10 +54,12 @@ public sealed class SigningEngine
             throw new ArgumentException($"Invalid engine options: {string.Join(" ", errors)}", nameof(options));
         }
 
+        ValidateHandlers(routes, handlers);
+
         _unitOfWork = unitOfWork;
         _incoming = incoming;
         _files = files;
-        _handler = handler;
+        _handlers = handlers;
         _routes = routes;
         _options = options;
         ReplicaId = replicaId;
@@ -211,11 +224,10 @@ public sealed class SigningEngine
 
     private async Task StepAsync(long routeId, CancellationToken ct)
     {
-        // Фаза 1: чтение состояния и, для этапа в состоянии REQUESTED, результата запроса.
+        // Фаза 1: чтение состояния в короткой транзакции.
         DateTimeOffset readAt;
         RouteInstance route;
         StageInstance? stage = null;
-        SignRequestResult? check = null;
         RouteDefinition? definition;
         await using (var uow = await _unitOfWork.BeginAsync(ct))
         {
@@ -233,13 +245,9 @@ public sealed class SigningEngine
             }
 
             definition = route is { RouteCode: { } code, RouteVersion: { } version } ? _routes.Find(code, version) : null;
-            if (definition is not null && stage?.State == StageState.Requested)
-            {
-                check = await _handler.CheckAsync(uow.Gateway, stage.RequestId, ct);
-            }
         }
 
-        // Фаза 2: один переход, каждый в своей транзакции.
+        // Фаза 2: вызов обработчика вне транзакции (если нужен) и один переход в своей транзакции.
         if (definition is null)
         {
             await FinishAsync(route, RouteStatus.Failed, StatusReasons.RouteNotFound,
@@ -254,10 +262,10 @@ public sealed class SigningEngine
                 await EnterNextStageAsync(route, definition, stage, ct);
                 break;
             case StageState.Pending:
-                await StartStageAsync(route, definition, stage, ct);
+                await StartStageAsync(route, Activate(route, definition, stage), ct);
                 break;
             case StageState.Requested:
-                await HandleCheckAsync(route, stage, check!, readAt, ct);
+                await CheckStageAsync(route, Activate(route, definition, stage), readAt, ct);
                 break;
             default:
                 throw new InvalidOperationException(
@@ -281,8 +289,9 @@ public sealed class SigningEngine
             return;
         }
 
-        await InTransactionAsync(async (store, _, now) =>
+        await InTransactionAsync(async (uow, now) =>
         {
+            var store = uow.Store;
             if (selection.Next is null)
             {
                 await store.UpdateAndReleaseAsync(
@@ -304,137 +313,188 @@ public sealed class SigningEngine
         }, ct);
     }
 
-    private async Task StartStageAsync(
-        RouteInstance route, RouteDefinition definition, StageInstance stage, CancellationToken ct)
+    private async Task StartStageAsync(RouteInstance route, ActiveStage active, CancellationToken ct)
     {
-        var stageDefinition = definition.FindStage(stage.StageKey)
-            ?? throw new InvalidOperationException($"Stage '{stage.StageKey}' is not defined in route {definition.Key}.");
-
-        await InTransactionAsync(async (store, gateway, now) =>
+        var outcome = await active.Handler.StartAsync(active.Context, ct);
+        if (outcome is not StageOutcome.Waiting waiting)
         {
-            // Сначала проверка аренды: потерянная аренда не должна дойти до ПО подписания.
-            await store.UpdateAndReleaseAsync(
+            await ApplyFinalOutcomeAsync(route, active, outcome, ct);
+            return;
+        }
+
+        var stage = active.Instance;
+        await InTransactionAsync(async (uow, now) =>
+        {
+            // Сначала проверка аренды: потерянная аренда не должна дойти до записей обработчика.
+            await uow.Store.UpdateAndReleaseAsync(
                 route with { Attempts = 0, NextAttemptAt = now + _options.PollInterval },
                 ReplicaId, ct);
 
-            var request = new SignRequest(stage.RequestId, route.ExternalDocId, stageDefinition.Kind, stageDefinition.Signer);
-            await _handler.StartAsync(gateway, request, ct);
+            await active.Handler.OnTransitionAsync(
+                new StageTransition(active.Context, StageState.Pending, StageState.Requested, outcome, null), uow, ct);
 
-            var deadline = now + stageDefinition.Timeout;
-            await store.UpdateStageAsync(
-                stage with { State = StageState.Requested, RequestedAt = now, DeadlineAt = deadline },
+            var deadline = now + active.Definition.Timeout;
+            await uow.Store.UpdateStageAsync(
+                stage with
+                {
+                    State = StageState.Requested,
+                    RequestedAt = now,
+                    DeadlineAt = deadline,
+                    Data = waiting.Data ?? stage.Data,
+                },
                 ct);
-            await AuditAsync(store, route.Id, stage.Id, AuditEventTypes.StageRequested, new
+            await AuditAsync(uow.Store, route.Id, stage.Id, AuditEventTypes.StageRequested, new
             {
                 stageKey = stage.StageKey,
                 requestId = stage.RequestId,
-                kind = stageDefinition.Kind.ToString().ToUpperInvariant(),
-                signer = stageDefinition.Signer,
+                handler = active.Definition.HandlerType.Name,
+                settings = DescribeSettings(active.Definition.Settings),
                 deadlineAt = deadline,
             }, ct);
         }, ct);
     }
 
-    private async Task HandleCheckAsync(
-        RouteInstance route, StageInstance stage, SignRequestResult check, DateTimeOffset checkedAt, CancellationToken ct)
+    private async Task CheckStageAsync(
+        RouteInstance route, ActiveStage active, DateTimeOffset checkedAt, CancellationToken ct)
     {
-        // Результат проверяется до срока: подпись, пришедшая с опозданием, всё равно засчитывается.
-        switch (check.Status)
+        var outcome = await active.Handler.CheckAsync(active.Context, ct);
+
+        // Результат проверяется до срока: результат, пришедший с опозданием, всё равно засчитывается.
+        if (outcome is not StageOutcome.Waiting waiting)
         {
-            case SignRequestStatus.Signed:
-                await CompleteStageAsync(route, stage, check, ct);
-                return;
-
-            case SignRequestStatus.Rejected:
-                await FinishAsync(route, RouteStatus.Rejected, null,
-                    stage, StageState.Rejected, check.StatusReason, ct: ct);
-                return;
-
-            case SignRequestStatus.Error:
-                await FinishAsync(route, RouteStatus.Failed, StatusReasons.SigningError,
-                    stage, StageState.Failed, check.StatusReason, ct: ct);
-                return;
-
-            case SignRequestStatus.Pending:
-                break;
-
-            default:
-                throw new InvalidOperationException($"Unknown sign request status {check.Status}.");
+            await ApplyFinalOutcomeAsync(route, active, outcome, ct);
+            return;
         }
 
+        var stage = active.Instance;
         var deadline = stage.DeadlineAt
             ?? throw new InvalidOperationException($"Requested stage instance {stage.Id} has no deadline.");
 
         if (checkedAt < deadline)
         {
-            await InTransactionAsync(async (store, _, now) =>
+            await InTransactionAsync(async (uow, now) =>
             {
                 var next = now + _options.PollInterval;
-                await store.UpdateAndReleaseAsync(
+                await uow.Store.UpdateAndReleaseAsync(
                     route with { Attempts = 0, NextAttemptAt = next < deadline ? next : deadline },
                     ReplicaId, ct);
+                if (waiting.Data is not null && waiting.Data != stage.Data)
+                {
+                    await uow.Store.UpdateStageAsync(stage with { Data = waiting.Data }, ct);
+                }
             }, ct);
             return;
         }
 
+        await active.Handler.CancelAsync(active.Context, ct);
         await FinishAsync(route, RouteStatus.Expired, null,
             stage, StageState.Expired, null,
             new { deadlineAt = deadline },
-            beforeStageWrite: gateway => _handler.CancelAsync(gateway, stage.RequestId, ct),
+            beforeStageWrite: uow => active.Handler.OnTransitionAsync(
+                new StageTransition(active.Context, StageState.Requested, StageState.Expired, null, null), uow, ct),
             ct: ct);
     }
 
-    private async Task CompleteStageAsync(
-        RouteInstance route, StageInstance stage, SignRequestResult check, CancellationToken ct)
+    /// <summary>Применяет исход обработчика, завершающий этап: выполнение, отказ или бизнес-ошибку.</summary>
+    private Task ApplyFinalOutcomeAsync(RouteInstance route, ActiveStage active, StageOutcome outcome, CancellationToken ct)
     {
+        switch (outcome)
+        {
+            case StageOutcome.Done done:
+                return CompleteStageAsync(route, active, done, ct);
+
+            case StageOutcome.Rejected rejected:
+                return FinishStageByHandlerAsync(route, active, outcome, RouteStatus.Rejected, null,
+                    StageState.Rejected, rejected.Reason, null, ct);
+
+            case StageOutcome.Failed failed:
+                return FinishStageByHandlerAsync(route, active, outcome, RouteStatus.Failed, failed.RouteReason,
+                    StageState.Failed, failed.Reason, null, ct);
+
+            default:
+                throw new InvalidOperationException($"Unknown stage outcome {outcome.GetType().Name}.");
+        }
+    }
+
+    private async Task CompleteStageAsync(
+        RouteInstance route, ActiveStage active, StageOutcome.Done done, CancellationToken ct)
+    {
+        var stage = active.Instance;
         NewSignedArtifact? artifact = null;
-        if (!string.IsNullOrWhiteSpace(check.FileRef))
+        if (done.File is { } file && !string.IsNullOrWhiteSpace(file.FileRef))
         {
             // Чтение вне транзакции: общий ресурс может быть медленным.
-            var content = await _files.ReadAsync(check.FileRef, ct);
+            var content = await _files.ReadAsync(file.FileRef, ct);
             var sha256 = Convert.ToHexStringLower(SHA256.HashData(content));
 
-            var hashMismatch = !string.IsNullOrWhiteSpace(check.FileHash)
-                && !string.Equals(check.FileHash.Trim(), sha256, StringComparison.OrdinalIgnoreCase);
-            var sizeMismatch = check.FileSize is { } size && size != content.LongLength;
+            var hashMismatch = !string.IsNullOrWhiteSpace(file.Hash)
+                && !string.Equals(file.Hash.Trim(), sha256, StringComparison.OrdinalIgnoreCase);
+            var sizeMismatch = file.Size is { } size && size != content.LongLength;
             if (hashMismatch || sizeMismatch)
             {
                 var details = new
                 {
-                    fileRef = check.FileRef,
-                    expectedHash = check.FileHash,
+                    fileRef = file.FileRef,
+                    expectedHash = file.Hash,
                     actualHash = sha256,
-                    expectedSize = check.FileSize,
+                    expectedSize = file.Size,
                     actualSize = content.LongLength,
                 };
-                await FinishAsync(route, RouteStatus.Failed, StatusReasons.ArtifactMismatch,
-                    stage, StageState.Failed, StatusReasons.ArtifactMismatch, details, ct: ct);
+                await FinishStageByHandlerAsync(route, active, done, RouteStatus.Failed, StatusReasons.ArtifactMismatch,
+                    StageState.Failed, StatusReasons.ArtifactMismatch, details, ct);
                 return;
             }
 
-            artifact = new NewSignedArtifact(stage.Id, content, sha256, check.FileRef);
+            artifact = new NewSignedArtifact(stage.Id, content, sha256, file.FileRef);
         }
 
-        await InTransactionAsync(async (store, _, now) =>
+        await InTransactionAsync(async (uow, now) =>
         {
-            await store.UpdateAndReleaseAsync(route with { Attempts = 0, NextAttemptAt = now }, ReplicaId, ct);
+            await uow.Store.UpdateAndReleaseAsync(route with { Attempts = 0, NextAttemptAt = now }, ReplicaId, ct);
             if (artifact is not null)
             {
-                await store.SaveArtifactAsync(artifact, ct);
+                await uow.Store.SaveArtifactAsync(artifact, ct);
             }
 
-            await store.UpdateStageAsync(stage with { State = StageState.Done, FinishedAt = now }, ct);
-            await AuditAsync(store, route.Id, stage.Id, AuditEventTypes.StageDone, new
+            await active.Handler.OnTransitionAsync(
+                new StageTransition(active.Context, stage.State, StageState.Done, done, null), uow, ct);
+
+            await uow.Store.UpdateStageAsync(
+                stage with
+                {
+                    State = StageState.Done,
+                    RequestedAt = stage.RequestedAt ?? now,
+                    FinishedAt = now,
+                    Data = done.Data ?? stage.Data,
+                },
+                ct);
+            await AuditAsync(uow.Store, route.Id, stage.Id, AuditEventTypes.StageDone, new
             {
                 stageKey = stage.StageKey,
                 requestId = stage.RequestId,
-                signedAt = check.SignedAt,
-                fileRef = check.FileRef,
+                signedAt = done.CompletedAt,
+                fileRef = done.File?.FileRef,
                 sha256 = artifact?.Sha256,
                 sizeBytes = artifact?.Content.LongLength,
             }, ct);
         }, ct);
     }
+
+    /// <summary>Завершает маршрут из-за исхода обработчика, сообщая обработчику о переходе в той же транзакции.</summary>
+    private Task FinishStageByHandlerAsync(
+        RouteInstance route,
+        ActiveStage active,
+        StageOutcome outcome,
+        RouteStatus status,
+        string? reason,
+        StageState stageState,
+        string? stageReason,
+        object? details,
+        CancellationToken ct) =>
+        FinishAsync(route, status, reason, active.Instance, stageState, stageReason, details,
+            beforeStageWrite: uow => active.Handler.OnTransitionAsync(
+                new StageTransition(active.Context, active.Instance.State, stageState, outcome, stageReason), uow, ct),
+            ct: ct);
 
     /// <summary>
     /// Переводит маршрут в терминальный статус и, если этап задан и ещё не терминален, этап — в терминальное состояние.
@@ -447,33 +507,34 @@ public sealed class SigningEngine
         StageState stageState = StageState.Failed,
         string? stageReason = null,
         object? details = null,
-        Func<ISigningGateway, Task>? beforeStageWrite = null,
+        Func<IUnitOfWork, Task>? beforeStageWrite = null,
         CancellationToken ct = default) =>
-        InTransactionAsync(async (store, gateway, now) =>
+        InTransactionAsync(async (uow, now) =>
         {
-            await store.UpdateAndReleaseAsync(
+            await uow.Store.UpdateAndReleaseAsync(
                 route with { Status = status, StatusReason = reason, Attempts = 0 },
                 ReplicaId, ct);
 
             if (beforeStageWrite is not null)
             {
-                await beforeStageWrite(gateway);
+                await beforeStageWrite(uow);
             }
 
             if (stage is not null && !stage.State.IsTerminal())
             {
-                await FinishStageAsync(store, route.Id, stage, stageState, stageReason, now, ct);
+                await FinishStageAsync(uow.Store, route.Id, stage, stageState, stageReason, now, ct);
             }
 
-            await AuditRouteFinishedAsync(store, route.Id, status, reason, details, ct);
+            await AuditRouteFinishedAsync(uow.Store, route.Id, status, reason, details, ct);
         }, ct);
 
     private async Task<StepResult> RecordTechnicalFailureAsync(long routeId, Exception error, CancellationToken ct)
     {
         try
         {
-            await InTransactionAsync(async (store, _, now) =>
+            await InTransactionAsync(async (uow, now) =>
             {
+                var store = uow.Store;
                 var route = await store.GetRouteAsync(routeId, ct);
                 if (route is null || route.LockedBy != ReplicaId || route.Status != RouteStatus.Active)
                 {
@@ -523,13 +584,68 @@ public sealed class SigningEngine
         }
     }
 
-    private async Task InTransactionAsync(
-        Func<IRouteInstanceStore, ISigningGateway, DateTimeOffset, Task> work, CancellationToken ct)
+    private async Task InTransactionAsync(Func<IUnitOfWork, DateTimeOffset, Task> work, CancellationToken ct)
     {
         await using var uow = await _unitOfWork.BeginAsync(ct);
         var now = await uow.Store.GetNowAsync(ct);
-        await work(uow.Store, uow.Gateway, now);
+        await work(uow, now);
         await uow.CommitAsync(ct);
+    }
+
+    /// <summary>Связывает экземпляр этапа с его определением и обработчиком.</summary>
+    private ActiveStage Activate(RouteInstance route, RouteDefinition definition, StageInstance stage)
+    {
+        var stageDefinition = definition.FindStage(stage.StageKey)
+            ?? throw new InvalidOperationException($"Stage '{stage.StageKey}' is not defined in route {definition.Key}.");
+        var handler = _handlers.Find(stageDefinition.HandlerType)
+            ?? throw new InvalidOperationException(
+                $"Stage handler {stageDefinition.HandlerType.Name} is not registered.");
+        var context = new StageContext(
+            route.Id, stage.Id, stage.StageKey, stage.RequestId,
+            route.ToDocumentContext(), stageDefinition.Settings, stage.Data);
+        return new ActiveStage(stageDefinition, stage, handler, context);
+    }
+
+    private static void ValidateHandlers(RouteRegistry routes, IStageHandlerResolver handlers)
+    {
+        var errors = new List<string>();
+        foreach (var route in routes.All.OrderBy(r => r.Code, StringComparer.Ordinal).ThenBy(r => r.Version))
+        {
+            foreach (var stage in route.Stages)
+            {
+                var subject = $"Route {route.Key}, stage '{stage.Key}'";
+                if (handlers.Find(stage.HandlerType) is not { } handler)
+                {
+                    errors.Add($"{subject}: handler {stage.HandlerType.Name} is not registered.");
+                    continue;
+                }
+
+                errors.AddRange(handler.ValidateSettings(stage.Settings).Select(e => $"{subject}: {e}."));
+            }
+        }
+
+        if (errors.Count > 0)
+        {
+            throw new InvalidOperationException($"Invalid stage handlers: {string.Join(" ", errors)}");
+        }
+    }
+
+    /// <summary>Настройки этапа для аудита. Несериализуемые настройки записываются строкой, а не роняют шаг.</summary>
+    private static object? DescribeSettings(object? settings)
+    {
+        if (settings is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.SerializeToElement(settings, settings.GetType(), SettingsJson);
+        }
+        catch (Exception ex) when (ex is NotSupportedException or JsonException or InvalidOperationException)
+        {
+            return settings.ToString();
+        }
     }
 
     private async Task FinishStageAsync(
@@ -575,4 +691,8 @@ public sealed class SigningEngine
 
     private static string Truncate(string value) =>
         value.Length <= MaxErrorLength ? value : value[..MaxErrorLength];
+
+    /// <summary>Этап в работе: определение, экземпляр, обработчик и контекст для обработчика.</summary>
+    private sealed record ActiveStage(
+        StageDefinition Definition, StageInstance Instance, IStageHandler Handler, StageContext Context);
 }

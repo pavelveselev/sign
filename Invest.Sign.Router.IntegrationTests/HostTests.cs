@@ -1,5 +1,7 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using Invest.Sign.Router.Core.Routing;
+using Invest.Sign.Router.Infrastructure.Stages;
 using Invest.Sign.Router.IntegrationTests.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -81,7 +83,52 @@ public sealed class HostTests(OracleFixture db) : IAsyncLifetime
         Assert.Contains("Oracle: ConnectionString is required.", error.ToString());
     }
 
-    private IHost BuildHost(Dictionary<string, string?>? overrides = null)
+    private static readonly RouteDefinition Subscription = Route.For("subscription", 1)
+        .Stage("manual", s => s.CopyFile(targetFolder: "manual").Timeout(TimeSpan.FromDays(1)))
+        .Stage("auto", s => s.Http(path: "subscriptions").Timeout(TimeSpan.FromMinutes(10)))
+        .Build();
+
+    [Fact]
+    public void Host_with_route_using_unregistered_stage_handler_fails_to_start()
+    {
+        using var host = BuildHost(
+            new Dictionary<string, string?> { ["HttpStage:BaseAddress"] = "https://subscriptions.test/api" },
+            routes: [Subscription],
+            configure: s => s.AddHttpStage());
+
+        var error = Assert.ThrowsAny<Exception>(() => host.StartAsync().GetAwaiter().GetResult());
+        Assert.Contains("stage 'manual': handler CopyFileStageHandler is not registered.", error.ToString());
+    }
+
+    [Fact]
+    public void Host_with_stage_handler_but_without_its_configuration_fails_to_start()
+    {
+        using var host = BuildHost(routes: [Subscription], configure: s => s.AddCopyFileStage().AddHttpStage());
+
+        var error = Assert.ThrowsAny<Exception>(() => host.StartAsync().GetAwaiter().GetResult());
+        Assert.Contains("CopyFile: SourceRoot must be an absolute path", error.ToString());
+    }
+
+    [Fact]
+    public void Host_with_configured_stage_handlers_builds_the_engine()
+    {
+        using var host = BuildHost(
+            new Dictionary<string, string?>
+            {
+                ["CopyFile:SourceRoot"] = _filesRoot,
+                ["CopyFile:TargetRoot"] = _filesRoot,
+                ["HttpStage:BaseAddress"] = "https://subscriptions.test/api",
+            },
+            routes: [Subscription],
+            configure: s => s.AddCopyFileStage().AddHttpStage());
+
+        Assert.NotNull(host.Services.GetRequiredService<Core.Engine.SigningEngine>());
+    }
+
+    private IHost BuildHost(
+        Dictionary<string, string?>? overrides = null,
+        IEnumerable<RouteDefinition>? routes = null,
+        Action<IServiceCollection>? configure = null)
     {
         var builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
         {
@@ -104,7 +151,8 @@ public sealed class HostTests(OracleFixture db) : IAsyncLifetime
         }
 
         builder.Configuration.AddInMemoryCollection(settings);
-        builder.Services.AddSigningRouter();
+        builder.Services.AddSigningRouter(routes);
+        configure?.Invoke(builder.Services);
         return builder.Build();
     }
 

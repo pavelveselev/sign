@@ -170,6 +170,7 @@ public sealed class FakeUnitOfWork(InMemoryDatabase db) : IUnitOfWork, IRouteIns
             DeadlineAt = stage.DeadlineAt,
             FinishedAt = stage.FinishedAt,
             Reason = stage.Reason,
+            Data = stage.Data,
         };
         _undo.Push(() => db.Stages[stage.Id] = previous);
         return Task.CompletedTask;

@@ -70,13 +70,52 @@ public static RouteDefinition ContractV1 { get; } =
 ```
 
 - `Automatic` / `Manual` передаются в ПО подписания как `p_kind` = `AUTO` / `MANUAL`, `signer` — как `p_signer`.
-- `Timeout` отсчитывается с момента создания запроса на подписание.
+- `Timeout` — сколько этап может ждать результата в `REQUESTED`, отсчитывается с момента запуска этапа.
 - Экземпляр маршрута запоминает код и версию. **Не редактируйте версию, по которой могли быть запущены документы** —
   добавьте новую рядом со старой.
 
 Пока реальные типы документов неизвестны, по умолчанию регистрируются маршруты-примеры
 [`SampleRoutes`](Invest.Sign.Router.Core/Routes/SampleRoutes.cs). Свои маршруты передаются в
 `services.AddSigningRouter(routes)`.
+
+### Действия этапов
+
+Что делает этап, решает его обработчик ([`IStageHandler`](Invest.Sign.Router.Core/Abstractions/IStageHandler.cs)).
+`Manual` / `Automatic` — сокращения для `SigningStageHandler`. Готовые обработчики из `Infrastructure`:
+
+```csharp
+Route.For("subscription", version: 1)
+    .Stage("manual", s => s.CopyFile(targetFolder: "manual").Timeout(TimeSpan.FromDays(1)))
+    .Stage("auto", s => s.Http(path: "subscriptions").Timeout(TimeSpan.FromMinutes(10)))
+    .Build();
+
+services.AddSigningRouter(routes)
+    .AddCopyFileStage()   // секция CopyFile
+    .AddHttpStage();      // секция HttpStage
+```
+
+- **`CopyFile`** копирует файл документа (путь — в атрибуте `file_ref` относительно `CopyFile:SourceRoot`) в каталог
+  `CopyFile:TargetRoot/<targetFolder>` под именем `{docId}_{fileName}` и сразу завершает этап. Запись идёт через временный
+  файл с атомарным переименованием, поэтому повтор безопасен.
+- **`Http`** отправляет `POST <path>` с заголовком `Idempotency-Key: <request_id>` и телом
+  `{ requestId, docId, docType, stageKey, attributes }`, затем опрашивает `GET <path>/<id>` и по истечении срока вызывает
+  `DELETE <path>/<id>`. Ответ: `{ "status": "DONE" | "PENDING" | "REJECTED" | "FAILED", "id", "reason" }`.
+  408, 429 и 5xx повторяются, остальные 4xx завершают маршрут с `FAILED` / `STAGE_ERROR`.
+
+Свой обработчик подключается через `s.Handler<MyHandler>(settings)` и регистрируется в DI под своим типом
+(`services.AddSingleton<MyHandler>()`). Как он устроен:
+
+1. `StartAsync` / `CheckAsync` / `CancelAsync` выполняются **вне** транзакции: в них копируют файлы и вызывают HTTP.
+   Они обязаны быть идемпотентны по `RequestId`, потому что после сбоя шаг повторяется.
+2. `OnTransitionAsync` выполняется **внутри** транзакции шага, после проверки аренды. В нём пишут свои данные в БД,
+   и они фиксируются вместе с переходом этапа.
+3. `StartAsync` и `CheckAsync` возвращают исход: `Waiting` (этап в `REQUESTED`, опрос позже), `Done`, `Rejected` или
+   `Failed`. Исключение считается технической ошибкой и повторяется.
+4. `Data` из исхода сохраняется в `SGN_STAGE_INSTANCE.data`, и обработчик получает её при следующих вызовах. Например,
+   там хранится идентификатор во внешней системе.
+
+Если маршрут ссылается на незарегистрированный обработчик или обработчик отклонил настройки этапа (`ValidateSettings`),
+хост не запустится. Любой вызов обработчика должен укладываться в `Engine:LeaseDuration`.
 
 ## Структура решения
 
@@ -122,6 +161,10 @@ public static RouteDefinition ContractV1 { get; } =
 | `Oracle:CommandTimeoutSeconds` | `30` | Тайм-аут одной SQL-команды |
 | `SignedFiles:Root` | — | Абсолютный путь к корню общего ресурса с подписанными файлами |
 | `SignedFiles:ReadTimeout` | `00:01:00` | Максимальное время чтения одного файла |
+| `CopyFile:SourceRoot`, `CopyFile:TargetRoot` | — | Только с `AddCopyFileStage()`: абсолютные корни исходных и целевых файлов |
+| `CopyFile:CopyTimeout` | `00:01:00` | Максимальное время копирования одного файла |
+| `HttpStage:BaseAddress` | — | Только с `AddHttpStage()`: адрес HTTP-сервиса этапов |
+| `HttpStage:Timeout` | `00:00:30` | Тайм-аут одного HTTP-запроса |
 | `Router:TickInterval` | `00:00:05` | Пауза между тактами, если такт не выбрал пачку целиком |
 | `Router:ShutdownTimeout` | `00:01:00` | Сколько ждать завершения текущего шага при остановке |
 | `Router:ReplicaName` | `POD_NAME` или имя машины | Основа идентификатора реплики; к ней добавляется случайный суффикс |

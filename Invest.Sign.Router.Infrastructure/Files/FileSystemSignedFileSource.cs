@@ -63,7 +63,7 @@ public sealed class FileSystemSignedFileSource : ISignedFileSource
             throw new ArgumentException($"Invalid signed files options: {string.Join(" ", errors)}", nameof(options));
         }
 
-        _root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(options.Root));
+        _root = SharePath.NormalizeRoot(options.Root);
         _readTimeout = options.ReadTimeout;
         _read = read;
     }
@@ -88,37 +88,7 @@ public sealed class FileSystemSignedFileSource : ISignedFileSource
 
     /// <summary>Отображает <paramref name="fileRef"/> в полный путь внутри корня.</summary>
     /// <exception cref="InvalidFileRefException">Ссылка пустая, абсолютная или указывает за пределы корня.</exception>
-    internal string Resolve(string fileRef)
-    {
-        if (string.IsNullOrWhiteSpace(fileRef))
-        {
-            throw new InvalidFileRefException(fileRef, "the reference is empty");
-        }
-
-        var relative = fileRef.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
-        if (Path.IsPathRooted(relative))
-        {
-            throw new InvalidFileRefException(fileRef, "the reference must be relative to the share root");
-        }
-
-        string full;
-        try
-        {
-            full = Path.GetFullPath(Path.Combine(_root, relative));
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            throw new InvalidFileRefException(fileRef, ex.Message);
-        }
-
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        if (!full.StartsWith(_root + Path.DirectorySeparatorChar, comparison))
-        {
-            throw new InvalidFileRefException(fileRef, "the reference points outside the share root");
-        }
-
-        return full;
-    }
+    internal string Resolve(string fileRef) => SharePath.Resolve(_root, fileRef);
 
     private static async Task<byte[]> ReadFileAsync(string path, CancellationToken cancellationToken)
     {
@@ -130,9 +100,9 @@ public sealed class FileSystemSignedFileSource : ISignedFileSource
     }
 }
 
-/// <summary><c>file_ref</c> не удаётся отобразить в файл внутри корня общего ресурса.</summary>
+/// <summary>Ссылку на файл не удаётся отобразить в файл внутри корня общего ресурса.</summary>
 public sealed class InvalidFileRefException(string? fileRef, string reason)
-    : Exception($"Invalid signed file reference '{fileRef}': {reason}.")
+    : Exception($"Invalid file reference '{fileRef}': {reason}.")
 {
     public string? FileRef { get; } = fileRef;
 }

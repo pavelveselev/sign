@@ -20,4 +20,7 @@ public static class StatusReasons
 
     /// <summary>ПО подписания сообщило <c>ERROR</c> по запросу. Подробности — в причине этапа.</summary>
     public const string SigningError = "SIGNING_ERROR";
+
+    /// <summary>Обработчик этапа вернул бизнес-ошибку без повтора. Подробности — в причине этапа.</summary>
+    public const string StageError = "STAGE_ERROR";
 }

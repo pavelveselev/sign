@@ -1,3 +1,4 @@
+using Invest.Sign.Router.Core.Abstractions;
 using Invest.Sign.Router.Core.Model;
 
 namespace Invest.Sign.Router.Core.Routing;
@@ -87,12 +88,12 @@ public sealed class RouteBuilder
     }
 }
 
-/// <summary>Настраивает отдельный этап. Вид подписания и срок обязательны.</summary>
+/// <summary>Настраивает отдельный этап. Обработчик и срок обязательны.</summary>
 public sealed class StageBuilder
 {
     private readonly List<string> _errors = [];
-    private SigningKind? _kind;
-    private string? _signer;
+    private Type? _handlerType;
+    private object? _settings;
     private TimeSpan? _timeout;
     private Func<DocumentContext, bool>? _condition;
 
@@ -103,11 +104,30 @@ public sealed class StageBuilder
 
     internal string Key { get; }
 
-    /// <summary>Подписание сотрудником; ПО подписания уведомляет подписанта.</summary>
-    public StageBuilder Manual(string signer) => SetKind(SigningKind.Manual, signer);
+    /// <summary>Подписание сотрудником во внешнем ПО; ПО подписания уведомляет подписанта.</summary>
+    public StageBuilder Manual(string signer) =>
+        Handler<SigningStageHandler>(new SigningStageSettings(SigningKind.Manual, signer));
 
-    /// <summary>Автоматическое подписание ПО подписания.</summary>
-    public StageBuilder Automatic(string signer) => SetKind(SigningKind.Auto, signer);
+    /// <summary>Автоматическое подписание во внешнем ПО.</summary>
+    public StageBuilder Automatic(string signer) =>
+        Handler<SigningStageHandler>(new SigningStageSettings(SigningKind.Auto, signer));
+
+    /// <summary>
+    /// Выполняет этап обработчиком <typeparamref name="THandler"/> с настройками <paramref name="settings"/>.
+    /// Обработчик должен быть зарегистрирован в <see cref="IStageHandlerResolver"/>; это проверяется при запуске движка.
+    /// </summary>
+    public StageBuilder Handler<THandler>(object? settings = null)
+        where THandler : IStageHandler
+    {
+        if (_handlerType is not null)
+        {
+            _errors.Add($"Stage '{Key}': handler is set more than once.");
+        }
+
+        _handlerType = typeof(THandler);
+        _settings = settings;
+        return this;
+    }
 
     /// <summary>Время, отведённое на запрос на подписание. Обязательно.</summary>
     public StageBuilder Timeout(TimeSpan timeout)
@@ -135,18 +155,6 @@ public sealed class StageBuilder
         return this;
     }
 
-    private StageBuilder SetKind(SigningKind kind, string signer)
-    {
-        if (_kind is not null)
-        {
-            _errors.Add($"Stage '{Key}': signing kind is set more than once.");
-        }
-
-        _kind = kind;
-        _signer = signer;
-        return this;
-    }
-
     internal void Validate(List<string> errors)
     {
         if (!Identifier.Validate("Stage key", Key, RouteLimits.MaxStageKeyLength, errors))
@@ -156,13 +164,13 @@ public sealed class StageBuilder
 
         errors.AddRange(_errors);
 
-        if (_kind is null)
+        if (_handlerType is null)
         {
-            errors.Add($"Stage '{Key}': signing kind is not set, call Manual(...) or Automatic(...).");
+            errors.Add($"Stage '{Key}': handler is not set, call Manual(...), Automatic(...) or Handler<T>(...).");
         }
-        else
+        else if (_settings is SigningStageSettings signing)
         {
-            Identifier.Validate($"Stage '{Key}': signer", _signer, RouteLimits.MaxSignerLength, errors);
+            Identifier.Validate($"Stage '{Key}': signer", signing.Signer, RouteLimits.MaxSignerLength, errors);
         }
 
         if (_timeout is null)
@@ -176,7 +184,7 @@ public sealed class StageBuilder
     }
 
     internal StageDefinition Build() =>
-        new(Key, _kind!.Value, _signer!, _timeout!.Value, _condition);
+        new(Key, _handlerType!, _settings, _timeout!.Value, _condition);
 }
 
 internal static class Identifier

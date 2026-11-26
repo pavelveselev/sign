@@ -25,7 +25,7 @@ GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE PROCEDURE, CREATE TRIGGE
 GRANT CREATE SESSION, CREATE TABLE, CREATE SEQUENCE TO sgn_service;  -- identity columns need CREATE SEQUENCE
 
 -- 2. as sgn_ext:     @stub/001_stub_tables.sql ... @stub/004_stub_grants.sql  (service_schema = SGN_SERVICE)
--- 3. as sgn_service: @service/001_sgn_route_instance.sql ... @service/004_sgn_audit_event.sql
+-- 3. as sgn_service: @service/001_sgn_route_instance.sql ... @service/005_sgn_stage_instance_data.sql
 ```
 
 The service schema does not reference the external schema in DDL, so steps 2 and 3 are independent.

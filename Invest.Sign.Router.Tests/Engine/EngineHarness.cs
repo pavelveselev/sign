@@ -25,12 +25,24 @@ public sealed class EngineHarness
         .Stage("c", s => s.Automatic("seal").Timeout(TimeSpan.FromHours(1)))
         .Build();
 
+    /// <summary>Этап "x" выполняет <see cref="ScriptedStageHandler"/> (срок 1 час), затем ручной этап "y".</summary>
+    public static readonly RouteDefinition Custom = Route.For("custom", 1)
+        .Stage("x", s => s.Handler<ScriptedStageHandler>("x-settings").Timeout(TimeSpan.FromHours(1)))
+        .Stage("y", s => s.Manual("bob").Timeout(TimeSpan.FromDays(1)))
+        .Build();
+
     private SigningEngine? _engine;
 
     public EngineHarness()
     {
         Incoming = new FakeIncomingDocumentSource(Db);
+        Handlers = new StageHandlerRegistry(new SigningStageHandler(new FakeUnitOfWorkFactory(Db)), Scripted);
     }
+
+    public ScriptedStageHandler Scripted { get; } = new();
+
+    /// <summary>Можно дополнять до первого использования <see cref="Engine"/>.</summary>
+    public StageHandlerRegistry Handlers { get; }
 
     public InMemoryDatabase Db { get; } = new();
 
@@ -50,13 +62,13 @@ public sealed class EngineHarness
         RetryMaxDelay = TimeSpan.FromSeconds(40),
     };
 
-    public RouteRegistry Registry { get; set; } = new([TwoStage, Conditional]);
+    public RouteRegistry Registry { get; set; } = new([TwoStage, Conditional, Custom]);
 
     public SigningEngine Engine => _engine ??= CreateEngine(ReplicaA);
 
     public SigningEngine CreateEngine(
         string replicaId, RouteRegistry? registry = null, IIncomingDocumentSource? incoming = null) =>
-        new(new FakeUnitOfWorkFactory(Db), incoming ?? Incoming, Files, new SigningStageHandler(),
+        new(new FakeUnitOfWorkFactory(Db), incoming ?? Incoming, Files, Handlers,
             registry ?? Registry, Options, replicaId);
 
     /// <summary>Добавляет входящий документ и запускает обнаружение. Возвращает идентификатор экземпляра маршрута.</summary>
