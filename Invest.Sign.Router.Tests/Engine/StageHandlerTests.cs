@@ -130,6 +130,38 @@ public class StageHandlerTests
     }
 
     [Fact]
+    public async Task Done_with_file_content_saves_artifact_without_reading_the_share()
+    {
+        var content = "signature"u8.ToArray();
+        Handler.OnStart = _ => new StageOutcome.Done(File: new StageFile("doc.pdf.sig", Content: content));
+        var id = await _h.StartDocumentAsync("doc-1", "custom");
+        await _h.StepAdvancedAsync(id);
+
+        await _h.StepAdvancedAsync(id);
+
+        var artifact = Assert.Single(Db.Artifacts).Artifact;
+        Assert.Equal(content, artifact.Content);
+        Assert.Equal("doc.pdf.sig", artifact.SourceRef);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(content)), artifact.Sha256);
+        Assert.Empty(_h.Files.Files);
+    }
+
+    [Fact]
+    public async Task Done_with_file_content_still_verifies_expected_hash()
+    {
+        Handler.OnStart = _ => new StageOutcome.Done(
+            File: new StageFile("doc.pdf.sig", Hash: "00", Content: "signature"u8.ToArray()));
+        var id = await _h.StartDocumentAsync("doc-1", "custom");
+        await _h.StepAdvancedAsync(id);
+
+        await _h.StepAdvancedAsync(id);
+
+        Assert.Equal(RouteStatus.Failed, Db.Routes[id].Status);
+        Assert.Equal(StatusReasons.ArtifactMismatch, Db.Routes[id].StatusReason);
+        Assert.Empty(Db.Artifacts);
+    }
+
+    [Fact]
     public async Task Expired_stage_is_cancelled_outside_and_reported_inside_the_transaction()
     {
         var id = await _h.StartDocumentAsync("doc-1", "custom");

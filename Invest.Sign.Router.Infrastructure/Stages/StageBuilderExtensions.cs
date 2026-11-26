@@ -16,6 +16,14 @@ public static class StageBuilderExtensions
         string fileName = "{docId}_{fileName}") =>
         stage.Handler<CopyFileStageHandler>(new CopyFileStageSettings(targetFolder, sourceAttribute, fileName));
 
+    /// <summary>
+    /// Подписание через каталоги (<see cref="FileSigningStageHandler"/>): файл документа уходит на подписание,
+    /// подписанный файл и подпись переносятся в финальный каталог, подпись сохраняется в базе.
+    /// </summary>
+    /// <param name="fileNameAttribute">Атрибут документа с именем файла.</param>
+    public static StageBuilder FileSigning(this StageBuilder stage, string fileNameAttribute = "file_name") =>
+        stage.Handler<FileSigningStageHandler>(new FileSigningStageSettings(fileNameAttribute));
+
     /// <summary>Выполняет этап HTTP-сервисом по пути <paramref name="path"/> относительно <c>HttpStage:BaseAddress</c>.</summary>
     public static StageBuilder Http(this StageBuilder stage, string path) =>
         stage.Handler<HttpStageHandler>(new HttpStageSettings(path));

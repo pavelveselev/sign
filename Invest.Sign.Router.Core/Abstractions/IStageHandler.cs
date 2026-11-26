@@ -134,8 +134,14 @@ public abstract record StageOutcome
     public sealed record Failed(string? Reason, string RouteReason = StatusReasons.StageError) : StageOutcome;
 }
 
-/// <summary>Файл результата этапа на общем ресурсе (<see cref="ISignedFileSource"/>).</summary>
-public sealed record StageFile(string FileRef, string? Hash = null, long? Size = null);
+/// <summary>Файл результата этапа.</summary>
+/// <param name="FileRef">Путь на общем ресурсе (<see cref="ISignedFileSource"/>) или, если задан <paramref name="Content"/>, имя файла для аудита.</param>
+/// <param name="Hash">Ожидаемый SHA-256 (hex); движок сверяет его с фактическим.</param>
+/// <param name="Size">Ожидаемый размер в байтах.</param>
+/// <param name="Content">
+/// Содержимое, уже прочитанное обработчиком. Если задано, движок не читает файл через <see cref="ISignedFileSource"/>.
+/// </param>
+public sealed record StageFile(string FileRef, string? Hash = null, long? Size = null, byte[]? Content = null);
 
 /// <summary>Переход этапа, передаваемый в <see cref="IStageHandler.OnTransitionAsync"/>.</summary>
 /// <param name="Stage">Этап до перехода.</param>

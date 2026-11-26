@@ -11,6 +11,7 @@
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="Testcontainers.Oracle" Version="4.16.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.16.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
@@ -23,6 +24,7 @@
     <ProjectReference Include="..\Invest.Sign.Router.Core\Invest.Sign.Router.Core.csproj" />
     <ProjectReference Include="..\Invest.Sign.Router.Infrastructure\Invest.Sign.Router.Infrastructure.csproj" />
     <ProjectReference Include="..\Invest.Sign.Router.OracleDb\Invest.Sign.Router.OracleDb.csproj" />
+    <ProjectReference Include="..\Invest.Sign.Router.PosDb\Invest.Sign.Router.PosDb.csproj" />
     <ProjectReference Include="..\Invest.Sign.Router\Invest.Sign.Router.csproj" />
   </ItemGroup>
 

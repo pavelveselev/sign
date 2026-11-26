@@ -4,6 +4,7 @@
     "Invest.Sign.Router": {
       "commandName": "Project",
       "dotnetRunMessages": true,
+      "applicationUrl": "http://localhost:5080",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"
       }

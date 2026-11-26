@@ -23,9 +23,20 @@ public sealed class RouterOptions
     /// </summary>
     public string? ReplicaName { get; set; }
 
+    /// <summary>
+    /// Насколько раньше водяного знака (самое позднее <c>created_at</c> известного документа) перечитывается вьюха
+    /// входящих документов. Страхует от строк, ставших видимыми с опозданием.
+    /// </summary>
+    public TimeSpan DiscoveryLookback { get; set; } = TimeSpan.FromDays(1);
+
     public IReadOnlyList<string> Validate()
     {
         var errors = new List<string>();
+        if (DiscoveryLookback < TimeSpan.Zero)
+        {
+            errors.Add($"{nameof(DiscoveryLookback)} must not be negative.");
+        }
+
         if (TickInterval <= TimeSpan.Zero)
         {
             errors.Add($"{nameof(TickInterval)} must be positive.");

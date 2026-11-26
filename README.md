@@ -8,6 +8,21 @@
 
 ## Как это работает
 
+> **Текущая схема (подписание через каталоги).** Состояние процесса подписания хранится в **Postgres**
+> (проект `Invest.Sign.Router.PosDb`, EF Core code first). Oracle используется **только** для чтения новых документов
+> из вьюхи `sign_incoming_document_v`. Путь документа:
+>
+> 1. Сервис опрашивает вьюху; для новой строки берёт имя файла из атрибута `file_name`.
+> 2. Перемещает файл из `FileSigning:SourceDirectory` в `FileSigning:SigningDirectory` (каталог для ПО подписания).
+> 3. Ждёт, пока файл и подпись `<имя>.sig` появятся в `FileSigning:SignedDirectory`.
+> 4. Перемещает оба в `FileSigning:FinalDirectory` и сохраняет подпись в `sign_signature`.
+>
+> Статус каждого документа — строка `sign_document`, каждое изменение статуса — строка `sign_document_status_history`.
+> История по идентификатору документа: `GET /api/documents/{docId}/status-history` (или
+> `DocumentStatusService.GetStatusHistoryAsync(docId)` в коде), см. [HTTP API](#http-api).
+> Ниже описана исходная схема с таблицами `SGN_*` в Oracle; её код (`Invest.Sign.Router.OracleDb`) сохранён, но хостом
+> больше не используется.
+
 ```
  ПО подписания ──► sign_incoming_document_v ──┐
        ▲                                      │  опрос
@@ -19,7 +34,8 @@
        общий ресурс (SMB) ── file_ref ────────┘ копия файла в BLOB
 ```
 
-- **Только опрос БД.** Входящих HTTP-вызовов, callback'ов и брокера сообщений нет; сервис — инициатор всех взаимодействий.
+- **Только опрос БД.** Callback'ов и брокера сообщений нет; сервис — инициатор всех взаимодействий. Входящий HTTP —
+  только чтение статусов ([HTTP API](#http-api)), на процесс подписания он не влияет.
 - **Одна база Oracle** (19c или новее) и для таблиц сервиса, и для интеграции с ПО подписания. Внешние объекты описаны
   в [db/contract](db/contract/README.md), сервис обращается к внешней схеме только через них.
 - **Несколько реплик.** Экземпляры маршрутов захватываются арендой (`locked_by`, `locked_until`) оптимистичным `UPDATE`;
@@ -122,9 +138,10 @@ services.AddSigningRouter(routes)
 | Проект | Назначение |
 |---|---|
 | `Invest.Sign.Router.Core` | Движок, модель, fluent API маршрутов, абстракции. Не зависит от Oracle и файловой системы |
-| `Invest.Sign.Router.OracleDb` | Реализация абстракций на Oracle: хранилище экземпляров, шлюз к ПО подписания, источник входящих документов, unit of work (ODP.NET + Dapper) |
-| `Invest.Sign.Router.Infrastructure` | Чтение подписанных файлов с общего ресурса |
-| `Invest.Sign.Router` | Worker-хост: DI, конфигурация, цикл тактов |
+| `Invest.Sign.Router.PosDb` | База состояния на Postgres (EF Core code first): документы, история статусов, подписи; unit of work, водяной знак обнаружения, чтение истории |
+| `Invest.Sign.Router.OracleDb` | Чтение вьюхи входящих документов (`OracleIncomingDocumentFeed`); прежняя реализация хранилища и шлюза на Oracle |
+| `Invest.Sign.Router.Infrastructure` | Обработчики этапов (подписание через каталоги, копирование файла, HTTP), чтение файлов с общего ресурса |
+| `Invest.Sign.Router` | Хост (ASP.NET Core): DI, конфигурация, цикл тактов, HTTP API статусов |
 | `Invest.Sign.Router.Tests` | Модульные тесты `Core` на фейках |
 | `Invest.Sign.Router.IntegrationTests` | Тесты на реальном Oracle в контейнере (Testcontainers) |
 | `db/` | SQL-скрипты: схема сервиса, спецификация внешнего контракта, заглушка внешней стороны — см. [db/README.md](db/README.md) |
@@ -138,6 +155,33 @@ services.AddSigningRouter(routes)
 - Docker — только для интеграционных тестов
 
 ## База данных
+
+### Postgres (состояние)
+
+| Таблица | Содержимое |
+|---|---|
+| `sign_document` | Текущий статус документа: одна строка на документ — маршрут, аренда, текущий этап |
+| `sign_document_status_history` | История изменения статусов, только вставка: событие + снимок статусов документа и этапа |
+| `sign_signature` | Подписи (`bytea`, SHA-256, размер), одна на этап, только вставка |
+
+Подписи — в отдельной таблице, а не в `sign_document`: у документа может быть несколько подписей (по одной на этап),
+а двоичное содержимое не должно утяжелять строку, которую движок опрашивает и обновляет на каждом шаге.
+
+Схема меняется только миграциями EF (`Invest.Sign.Router.PosDb/Migrations`); сервис при старте её не меняет.
+
+```powershell
+# новая миграция после изменения модели
+dotnet ef migrations add <Name> --project Invest.Sign.Router.PosDb
+# идемпотентный SQL-скрипт для DBA
+dotnet ef migrations script --idempotent --project Invest.Sign.Router.PosDb -o db/postgres/schema.sql
+# или применить напрямую
+$env:SIGN_POSTGRES = "Host=...;Database=...;Username=...;Password=..."; dotnet ef database update --project Invest.Sign.Router.PosDb
+```
+
+Новые документы обнаруживаются по водяному знаку: вьюха Oracle читается начиная с самого позднего `created_at`
+известного документа минус `Router:DiscoveryLookback`, уже известные документы отфильтровываются.
+
+### Oracle
 
 Сервис не меняет схему при старте: скрипты из `db/` накатывает Oracle-разработчик.
 
@@ -159,8 +203,16 @@ services.AddSigningRouter(routes)
 | `Oracle:ConnectionString` | — | Строка подключения ODP.NET от имени владельца схемы сервиса. **Не храните в репозитории** |
 | `Oracle:ExternalSchema` | — | Схема объектов внешнего контракта |
 | `Oracle:CommandTimeoutSeconds` | `30` | Тайм-аут одной SQL-команды |
-| `SignedFiles:Root` | — | Абсолютный путь к корню общего ресурса с подписанными файлами |
-| `SignedFiles:ReadTimeout` | `00:01:00` | Максимальное время чтения одного файла |
+| `Postgres:ConnectionString` | — | Строка подключения Npgsql к базе состояния. **Не храните в репозитории** |
+| `Postgres:CommandTimeoutSeconds` | `30` | Тайм-аут одной SQL-команды |
+| `FileSigning:SourceDirectory` | — | Абсолютный путь: откуда берётся файл документа |
+| `FileSigning:SigningDirectory` | — | Куда файл перемещается на подписание |
+| `FileSigning:SignedDirectory` | — | Куда ПО подписания кладёт подписанный файл и подпись |
+| `FileSigning:FinalDirectory` | — | Куда сервис перемещает подписанный файл и подпись |
+| `FileSigning:SignatureSuffix` | `.sig` | Суффикс файла подписи: `doc.pdf` → `doc.pdf.sig` |
+| `FileSigning:IoTimeout` | `00:01:00` | Максимальное время файловых операций одного шага |
+| `Router:DiscoveryLookback` | `1.00:00:00` | Окно перечитывания вьюхи входящих до водяного знака |
+| `SignedFiles:Root`, `SignedFiles:ReadTimeout` | — | Только с `AddSignedFiles()`: корень общего ресурса для обработчиков, возвращающих ссылку на файл |
 | `CopyFile:SourceRoot`, `CopyFile:TargetRoot` | — | Только с `AddCopyFileStage()`: абсолютные корни исходных и целевых файлов |
 | `CopyFile:CopyTimeout` | `00:01:00` | Максимальное время копирования одного файла |
 | `HttpStage:BaseAddress` | — | Только с `AddHttpStage()`: адрес HTTP-сервиса этапов |
@@ -182,10 +234,44 @@ services.AddSigningRouter(routes)
 cd Invest.Sign.Router
 dotnet user-secrets set "Oracle:ConnectionString" "User Id=sgn_service;Password=...;Data Source=localhost:1521/XEPDB1"
 dotnet user-secrets set "Oracle:ExternalSchema" "SGN_EXT"
-dotnet user-secrets set "SignedFiles:Root" "C:\\signed"
+dotnet user-secrets set "Postgres:ConnectionString" "Host=localhost;Database=sign;Username=sign;Password=..."
 ```
 
 В Kubernetes `terminationGracePeriodSeconds` должен быть больше `Router:ShutdownTimeout`.
+
+## HTTP API
+
+Адрес задаётся стандартно для ASP.NET Core: `ASPNETCORE_HTTP_PORTS`, `ASPNETCORE_URLS` или ключ `Urls`
+(локально — `http://localhost:5080` из `launchSettings.json`). **Аутентификации нет**: эндпоинт отдаёт статусы и
+историю любого документа, закрывайте его сетью или шлюзом.
+
+`GET /api/documents/{docId}/status-history` — текущий статус документа и история его изменений.
+
+- `200` — документ найден; `404` — сервис ещё не обнаружил документ с таким `doc_id`.
+- `history` упорядочена по времени; `payload` — подробности события (JSON-объект).
+
+```json
+{
+  "docId": "doc-1",
+  "docType": "document",
+  "status": "COMPLETED",
+  "statusReason": null,
+  "stageKey": "sign",
+  "stageState": "DONE",
+  "createdAt": "2026-11-26T10:00:00.12+00:00",
+  "updatedAt": "2026-11-26T10:05:12.34+00:00",
+  "history": [
+    { "at": "2026-11-26T10:00:00.12+00:00", "eventType": "ROUTE_CREATED", "status": "ACTIVE",
+      "statusReason": null, "stageKey": null, "stageState": null,
+      "payload": { "docId": "doc-1", "docType": "document", "routeCode": "document", "routeVersion": 1 },
+      "actor": "router-0-1a2b3c4d" },
+    { "at": "2026-11-26T10:05:12.34+00:00", "eventType": "ROUTE_FINISHED", "status": "COMPLETED",
+      "statusReason": null, "stageKey": "sign", "stageState": "DONE",
+      "payload": { "status": "COMPLETED", "reason": null, "details": null },
+      "actor": "router-0-1a2b3c4d" }
+  ]
+}
+```
 
 ## Сборка и запуск
 

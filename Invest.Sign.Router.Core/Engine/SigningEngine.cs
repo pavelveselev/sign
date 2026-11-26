@@ -197,7 +197,8 @@ public sealed class SigningEngine
             route?.Version,
             route is null ? RouteStatus.Failed : RouteStatus.Active,
             route is null ? StatusReasons.UnknownDocType : null,
-            now);
+            now,
+            document.CreatedAt);
 
         var id = await store.TryCreateRouteAsync(instance, ct);
         if (id is null)
@@ -423,8 +424,8 @@ public sealed class SigningEngine
         NewSignedArtifact? artifact = null;
         if (done.File is { } file && !string.IsNullOrWhiteSpace(file.FileRef))
         {
-            // Чтение вне транзакции: общий ресурс может быть медленным.
-            var content = await _files.ReadAsync(file.FileRef, ct);
+            // Чтение вне транзакции: общий ресурс может быть медленным. Обработчик может передать уже прочитанный файл.
+            var content = file.Content ?? await _files.ReadAsync(file.FileRef, ct);
             var sha256 = Convert.ToHexStringLower(SHA256.HashData(content));
 
             var hashMismatch = !string.IsNullOrWhiteSpace(file.Hash)

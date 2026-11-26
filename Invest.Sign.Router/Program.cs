@@ -1,7 +1,8 @@
 using Invest.Sign.Router;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSigningRouter();
 
-var host = builder.Build();
-host.Run();
+var app = builder.Build();
+app.MapDocumentStatusEndpoints();
+app.Run();

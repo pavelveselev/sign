@@ -1,10 +1,11 @@
 using Invest.Sign.Router.Core.Abstractions;
+using Invest.Sign.Router.Core.Discovery;
 using Invest.Sign.Router.Core.Engine;
-using Invest.Sign.Router.Core.Routes;
 using Invest.Sign.Router.Core.Routing;
 using Invest.Sign.Router.Infrastructure.Files;
 using Invest.Sign.Router.Infrastructure.Stages;
 using Invest.Sign.Router.OracleDb;
+using Invest.Sign.Router.PosDb;
 using Microsoft.Extensions.Options;
 
 namespace Invest.Sign.Router;
@@ -12,9 +13,10 @@ namespace Invest.Sign.Router;
 public static class RouterServiceCollectionExtensions
 {
     /// <summary>
-    /// Регистрирует движок маршрутов, его зависимости на Oracle и файловой системе и цикл тактов.
+    /// Регистрирует движок маршрутов и цикл тактов. Состояние документов, история статусов и подписи — в Postgres;
+    /// Oracle — только источник новых документов (вьюха входящих). По умолчанию подключён этап подписания через каталоги.
     /// </summary>
-    /// <param name="routes">Определения маршрутов; по умолчанию — маршруты-примеры <see cref="SampleRoutes.All"/>.</param>
+    /// <param name="routes">Определения маршрутов; по умолчанию — <see cref="DefaultRoutes.All"/>.</param>
     public static IServiceCollection AddSigningRouter(
         this IServiceCollection services, IEnumerable<RouteDefinition>? routes = null)
     {
@@ -23,27 +25,36 @@ public static class RouterServiceCollectionExtensions
         services.AddValidatedOptions<RouterOptions>(RouterOptions.SectionName, o => o.Validate());
         services.AddValidatedOptions<EngineOptions>(RouterOptions.EngineSectionName, o => o.Validate());
         services.AddValidatedOptions<OracleOptions>(OracleOptions.SectionName, o => o.Validate());
-        services.AddValidatedOptions<SignedFilesOptions>(SignedFilesOptions.SectionName, o => o.Validate());
+        services.AddValidatedOptions<PostgresOptions>(PostgresOptions.SectionName, o => o.Validate());
 
         // Хост ждёт завершения текущего шага не дольше этого времени, затем шаг прерывается.
         services.AddOptions<HostOptions>()
             .Configure<IOptions<RouterOptions>>((host, router) => host.ShutdownTimeout = router.Value.ShutdownTimeout);
 
-        // Пока реальные типы документов неизвестны (открытый вопрос 9), по умолчанию работают маршруты-примеры.
         // Реестр строится сразу: дубликат (код, версия) должен остановить запуск.
-        services.AddSingleton(new RouteRegistry(routes ?? SampleRoutes.All));
+        services.AddSingleton(new RouteRegistry(routes ?? DefaultRoutes.All));
 
         services.AddSingleton(sp => ReplicaIdentity.Create(sp.GetRequiredService<IOptions<RouterOptions>>().Value));
 
-        services.AddSingleton<IUnitOfWorkFactory>(sp =>
-            new OracleUnitOfWorkFactory(sp.GetRequiredService<IOptions<OracleOptions>>().Value));
-        services.AddSingleton<IIncomingDocumentSource>(sp =>
-            new OracleIncomingDocumentSource(sp.GetRequiredService<IOptions<OracleOptions>>().Value));
-        services.AddSingleton<ISignedFileSource>(sp =>
-            new FileSystemSignedFileSource(sp.GetRequiredService<IOptions<SignedFilesOptions>>().Value));
+        // База состояния: одна фабрика (и один пул соединений) на процесс.
+        services.AddSingleton(sp => new PostgresUnitOfWorkFactory(sp.GetRequiredService<IOptions<PostgresOptions>>().Value));
+        services.AddSingleton<IUnitOfWorkFactory>(sp => sp.GetRequiredService<PostgresUnitOfWorkFactory>());
+        services.AddSingleton<IDocumentDbContextFactory>(sp => sp.GetRequiredService<PostgresUnitOfWorkFactory>());
+        services.AddSingleton<DocumentStatusReader>();
+        services.AddSingleton<DocumentStatusService>();
+
+        // Новые документы: лента вьюхи Oracle минус документы, уже известные базе состояния.
+        services.AddSingleton<IIncomingDocumentSource>(sp => new WatermarkIncomingDocumentSource(
+            new OracleIncomingDocumentFeed(sp.GetRequiredService<IOptions<OracleOptions>>().Value),
+            new PostgresKnownDocuments(sp.GetRequiredService<IDocumentDbContextFactory>()),
+            sp.GetRequiredService<IOptions<RouterOptions>>().Value.DiscoveryLookback));
+
+        // Этапы по умолчанию передают файл результата сами; чтение с общего ресурса подключается AddSignedFiles().
+        services.AddSingleton<ISignedFileSource, UnavailableSignedFileSource>();
+
         // Обработчики этапов регистрируются под своим конкретным типом: этап ссылается на него в Handler<T>().
         // Если маршрут ссылается на незарегистрированный обработчик, движок не создастся и хост не запустится.
-        services.AddSingleton<SigningStageHandler>();
+        services.AddFileSigningStage();
         services.AddSingleton<IStageHandlerResolver>(sp => new ServiceProviderStageHandlerResolver(sp));
 
         services.AddSingleton(sp => new SigningEngine(
@@ -56,6 +67,30 @@ public static class RouterServiceCollectionExtensions
             sp.GetRequiredService<ReplicaIdentity>().Id));
 
         services.AddHostedService<Worker>();
+        return services;
+    }
+
+    /// <summary>
+    /// Регистрирует <see cref="FileSigningStageHandler"/> для этапов <c>FileSigning(...)</c>. Настройки — секция
+    /// <c>FileSigning</c>. Вызывается из <see cref="AddSigningRouter"/>.
+    /// </summary>
+    private static IServiceCollection AddFileSigningStage(this IServiceCollection services)
+    {
+        services.AddValidatedOptions<FileSigningOptions>(FileSigningOptions.SectionName, o => o.Validate());
+        services.AddSingleton(sp =>
+            new FileSigningStageHandler(sp.GetRequiredService<IOptions<FileSigningOptions>>().Value));
+        return services;
+    }
+
+    /// <summary>
+    /// Подключает чтение файлов результата с общего ресурса (<see cref="FileSystemSignedFileSource"/>) для обработчиков,
+    /// которые возвращают только ссылку на файл. Настройки — секция <c>SignedFiles</c>.
+    /// </summary>
+    public static IServiceCollection AddSignedFiles(this IServiceCollection services)
+    {
+        services.AddValidatedOptions<SignedFilesOptions>(SignedFilesOptions.SectionName, o => o.Validate());
+        services.AddSingleton<ISignedFileSource>(sp =>
+            new FileSystemSignedFileSource(sp.GetRequiredService<IOptions<SignedFilesOptions>>().Value));
         return services;
     }
 
@@ -89,5 +124,13 @@ public static class RouterServiceCollectionExtensions
             return new HttpStageHandler(client);
         });
         return services;
+    }
+
+    /// <summary>Источник по умолчанию: обработчик, вернувший только ссылку на файл, получает понятную ошибку.</summary>
+    private sealed class UnavailableSignedFileSource : ISignedFileSource
+    {
+        public Task<byte[]> ReadAsync(string fileRef, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                $"Stage result file '{fileRef}' cannot be read: no signed file source is configured (call AddSignedFiles()).");
     }
 }

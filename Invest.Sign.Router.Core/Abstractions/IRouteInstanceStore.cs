@@ -62,7 +62,8 @@ public sealed record NewRouteInstance(
     int? RouteVersion,
     RouteStatus Status,
     string? StatusReason,
-    DateTimeOffset NextAttemptAt);
+    DateTimeOffset NextAttemptAt,
+    DateTimeOffset? SourceCreatedAt = null);
 
 public sealed record NewStageInstance(long RouteInstanceId, string StageKey, string RequestId);
 
