@@ -9,7 +9,7 @@ public static class StatusReasons
     /// <summary>Версия маршрута, зафиксированная в экземпляре, больше отсутствует в реестре.</summary>
     public const string RouteNotFound = "ROUTE_NOT_FOUND";
 
-    /// <summary>Хеш или размер подписанного файла не совпадает со значениями, сообщёнными ПО подписания.</summary>
+    /// <summary>Хеш или размер подписанного файла не совпадает со значениями, которые вернул обработчик этапа.</summary>
     public const string ArtifactMismatch = "ARTIFACT_MISMATCH";
 
     /// <summary>Технические ошибки превысили настроенное число попыток.</summary>
@@ -17,9 +17,6 @@ public static class StatusReasons
 
     /// <summary>Условие входа в этап выбросило исключение, например обязательный атрибут отсутствует или некорректен. Не повторяется.</summary>
     public const string ConditionError = "CONDITION_ERROR";
-
-    /// <summary>ПО подписания сообщило <c>ERROR</c> по запросу. Подробности — в причине этапа.</summary>
-    public const string SigningError = "SIGNING_ERROR";
 
     /// <summary>Обработчик этапа вернул бизнес-ошибку без повтора. Подробности — в причине этапа.</summary>
     public const string StageError = "STAGE_ERROR";

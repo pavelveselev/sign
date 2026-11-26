@@ -21,8 +21,8 @@ public class EngineStoppingTests
         await _h.StepAdvancedAsync(second);
 
         using var stopping = new CancellationTokenSource();
-        var handler = new StoppingHandler(stopping, new SigningStageHandler(new FakeUnitOfWorkFactory(_h.Db)));
-        var handlers = new StageHandlerRegistry().Add(typeof(SigningStageHandler), handler);
+        var handler = new StoppingHandler(stopping, new FakeSigningStageHandler(_h.Db));
+        var handlers = new StageHandlerRegistry().Add(typeof(FakeSigningStageHandler), handler);
         var engine = new SigningEngine(
             new FakeUnitOfWorkFactory(_h.Db), _h.Incoming, _h.Files, handlers, new RouteRegistry([TwoStage]), _h.Options, ReplicaA);
 

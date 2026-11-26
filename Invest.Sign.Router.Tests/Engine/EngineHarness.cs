@@ -12,23 +12,23 @@ public sealed class EngineHarness
     public const string ReplicaA = "replica-a";
     public const string ReplicaB = "replica-b";
 
-    /// <summary>Ручной этап "a" (1 день), автоматический этап "b" (1 час).</summary>
+    /// <summary>Этап подписания "a" (1 день), затем этап подписания "b" (1 час).</summary>
     public static readonly RouteDefinition TwoStage = Route.For("two-stage", 1)
-        .Stage("a", s => s.Manual("alice").Timeout(TimeSpan.FromDays(1)))
-        .Stage("b", s => s.Automatic("seal").Timeout(TimeSpan.FromHours(1)))
+        .Stage("a", s => s.Signing("alice").Timeout(TimeSpan.FromDays(1)))
+        .Stage("b", s => s.Signing("seal").Timeout(TimeSpan.FromHours(1)))
         .Build();
 
     /// <summary>В этап "b" входим, только если атрибут <c>needs-b</c> равен true.</summary>
     public static readonly RouteDefinition Conditional = Route.For("conditional", 1)
-        .Stage("a", s => s.Manual("alice").Timeout(TimeSpan.FromDays(1)))
-        .Stage("b", s => s.Manual("bob").When(d => d.GetBoolean("needs-b")).Timeout(TimeSpan.FromDays(1)))
-        .Stage("c", s => s.Automatic("seal").Timeout(TimeSpan.FromHours(1)))
+        .Stage("a", s => s.Signing("alice").Timeout(TimeSpan.FromDays(1)))
+        .Stage("b", s => s.Signing("bob").When(d => d.GetBoolean("needs-b")).Timeout(TimeSpan.FromDays(1)))
+        .Stage("c", s => s.Signing("seal").Timeout(TimeSpan.FromHours(1)))
         .Build();
 
-    /// <summary>Этап "x" выполняет <see cref="ScriptedStageHandler"/> (срок 1 час), затем ручной этап "y".</summary>
+    /// <summary>Этап "x" выполняет <see cref="ScriptedStageHandler"/> (срок 1 час), затем этап подписания "y".</summary>
     public static readonly RouteDefinition Custom = Route.For("custom", 1)
         .Stage("x", s => s.Handler<ScriptedStageHandler>("x-settings").Timeout(TimeSpan.FromHours(1)))
-        .Stage("y", s => s.Manual("bob").Timeout(TimeSpan.FromDays(1)))
+        .Stage("y", s => s.Signing("bob").Timeout(TimeSpan.FromDays(1)))
         .Build();
 
     private SigningEngine? _engine;
@@ -36,7 +36,7 @@ public sealed class EngineHarness
     public EngineHarness()
     {
         Incoming = new FakeIncomingDocumentSource(Db);
-        Handlers = new StageHandlerRegistry(new SigningStageHandler(new FakeUnitOfWorkFactory(Db)), Scripted);
+        Handlers = new StageHandlerRegistry(new FakeSigningStageHandler(Db), Scripted);
     }
 
     public ScriptedStageHandler Scripted { get; } = new();

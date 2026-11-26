@@ -1,4 +1,4 @@
--- Представления контракта поверх таблиц заглушки. Имена и типы столбцов соответствуют db/contract/README.md.
+-- Представление контракта поверх таблицы заглушки. Имена и типы столбцов соответствуют db/contract/README.md.
 
 CREATE OR REPLACE VIEW sign_incoming_document_v AS
 SELECT doc_id,
@@ -7,14 +7,3 @@ SELECT doc_id,
        content_hash,
        created_at
   FROM stub_incoming_document;
-
-CREATE OR REPLACE VIEW sign_request_v AS
-SELECT request_id,
-       status,
-       status_reason,
-       signed_at,
-       updated_at,
-       file_ref,
-       file_hash,
-       file_size
-  FROM stub_sign_request;

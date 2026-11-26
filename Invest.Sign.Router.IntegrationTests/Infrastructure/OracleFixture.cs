@@ -13,7 +13,7 @@ public sealed class OracleCollection : ICollectionFixture<OracleFixture>
 
 /// <summary>
 /// Oracle в контейнере с двумя схемами: <c>SGN_EXT</c> (заглушка внешней стороны, db/stub) и
-/// <c>SGN_SERVICE</c> (таблицы сервиса, db/service); обе создаются скриптами репозитория.
+/// <c>SGN_SERVICE</c> — учётная запись сервиса, которая только читает вьюху входящих документов.
 /// </summary>
 public sealed class OracleFixture : IAsyncLifetime
 {
@@ -55,8 +55,8 @@ public sealed class OracleFixture : IAsyncLifetime
             {
                 $"CREATE USER {ExternalSchema} IDENTIFIED BY \"{externalPassword}\" QUOTA UNLIMITED ON users",
                 $"CREATE USER {ServiceSchema} IDENTIFIED BY \"{servicePassword}\" QUOTA UNLIMITED ON users",
-                $"GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE PROCEDURE, CREATE TRIGGER TO {ExternalSchema}",
-                $"GRANT CREATE SESSION, CREATE TABLE, CREATE SEQUENCE TO {ServiceSchema}",
+                $"GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW TO {ExternalSchema}",
+                $"GRANT CREATE SESSION TO {ServiceSchema}",
             })
             {
                 await connection.ExecuteAsync(sql);
@@ -79,7 +79,6 @@ public sealed class OracleFixture : IAsyncLifetime
             ExternalConnectionString,
             Path.Combine(db, "stub"),
             new Dictionary<string, string> { ["service_schema"] = ServiceSchema });
-        await SqlScriptRunner.RunFolderAsync(ServiceConnectionString, Path.Combine(db, "service"));
     }
 
     public async Task DisposeAsync()
@@ -91,31 +90,11 @@ public sealed class OracleFixture : IAsyncLifetime
         }
     }
 
-    /// <summary>Удаляет все строки из таблиц сервиса и заглушки.</summary>
+    /// <summary>Удаляет все строки из таблицы заглушки.</summary>
     public async Task ResetAsync()
     {
-        await using (var service = new OracleConnection(ServiceConnectionString))
-        {
-            await service.ExecuteAsync("""
-                BEGIN
-                    UPDATE sgn_route_instance SET current_stage_id = NULL;
-                    DELETE FROM sgn_audit_event;
-                    DELETE FROM sgn_signed_artifact;
-                    DELETE FROM sgn_stage_instance;
-                    DELETE FROM sgn_route_instance;
-                    COMMIT;
-                END;
-                """);
-        }
-
         await using var external = new OracleConnection(ExternalConnectionString);
-        await external.ExecuteAsync("""
-            BEGIN
-                DELETE FROM stub_sign_request;
-                DELETE FROM stub_incoming_document;
-                COMMIT;
-            END;
-            """);
+        await external.ExecuteAsync("DELETE FROM stub_incoming_document");
     }
 
     /// <summary>Выполняет оператор от имени внешней стороны и фиксирует транзакцию.</summary>
@@ -123,25 +102,6 @@ public sealed class OracleFixture : IAsyncLifetime
     {
         await using var connection = new OracleConnection(ExternalConnectionString);
         await connection.ExecuteAsync(sql, parameters);
-    }
-
-    /// <summary>Выполняет оператор от имени владельца схемы сервиса и фиксирует транзакцию.</summary>
-    public async Task ExecuteServiceAsync(string sql, object? parameters = null)
-    {
-        await using var connection = new OracleConnection(ServiceConnectionString);
-        await connection.ExecuteAsync(sql, parameters);
-    }
-
-    public async Task<IReadOnlyList<T>> QueryServiceAsync<T>(string sql, object? parameters = null)
-    {
-        await using var connection = new OracleConnection(ServiceConnectionString);
-        return (await connection.QueryAsync<T>(sql, parameters)).ToList();
-    }
-
-    public async Task<IReadOnlyList<T>> QueryExternalAsync<T>(string sql, object? parameters = null)
-    {
-        await using var connection = new OracleConnection(ExternalConnectionString);
-        return (await connection.QueryAsync<T>(sql, parameters)).ToList();
     }
 
     public Task AddIncomingDocumentAsync(string docId, string docType, string? attributes = null) =>
@@ -156,7 +116,7 @@ public sealed class OracleFixture : IAsyncLifetime
         for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
         {
             var candidate = Path.Combine(dir.FullName, "db");
-            if (Directory.Exists(Path.Combine(candidate, "service")) && Directory.Exists(Path.Combine(candidate, "stub")))
+            if (Directory.Exists(Path.Combine(candidate, "stub")))
             {
                 return candidate;
             }

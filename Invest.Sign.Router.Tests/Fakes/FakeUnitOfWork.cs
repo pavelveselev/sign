@@ -10,14 +10,12 @@ public sealed class FakeUnitOfWorkFactory(InMemoryDatabase db) : IUnitOfWorkFact
 }
 
 /// <summary>Транзакция над <see cref="InMemoryDatabase"/>: изменения применяются сразу и отменяются при откате.</summary>
-public sealed class FakeUnitOfWork(InMemoryDatabase db) : IUnitOfWork, IRouteInstanceStore, ISigningGateway
+public sealed class FakeUnitOfWork(InMemoryDatabase db) : IUnitOfWork, IRouteInstanceStore
 {
     private readonly Stack<Action> _undo = new();
     private bool _completed;
 
     public IRouteInstanceStore Store => this;
-
-    public ISigningGateway Gateway => this;
 
     public Task CommitAsync(CancellationToken cancellationToken)
     {
@@ -194,7 +192,7 @@ public sealed class FakeUnitOfWork(InMemoryDatabase db) : IUnitOfWork, IRouteIns
         return Task.CompletedTask;
     }
 
-    // ---- ISigningGateway (заглушка внешнего контракта) ----
+    // ---- Внешняя система подписания для FakeSigningStageHandler: вызовы в транзакции этой единицы работы ----
 
     public Task CreateRequestAsync(SignRequest request, CancellationToken cancellationToken)
     {
@@ -206,7 +204,7 @@ public sealed class FakeUnitOfWork(InMemoryDatabase db) : IUnitOfWork, IRouteIns
         {
             db.SignRequests[request.RequestId] = new FakeSignRequest(
                 request, new SignRequestResult(request.RequestId, SignRequestStatus.Pending));
-            if (db.GatewayTransactional)
+            if (db.SigningSideTransactional)
             {
                 _undo.Push(() => db.SignRequests.Remove(request.RequestId));
             }
@@ -229,7 +227,7 @@ public sealed class FakeUnitOfWork(InMemoryDatabase db) : IUnitOfWork, IRouteIns
             && !request.Cancelled)
         {
             db.SignRequests[requestId] = request with { Cancelled = true };
-            if (db.GatewayTransactional)
+            if (db.SigningSideTransactional)
             {
                 _undo.Push(() => db.SignRequests[requestId] = request);
             }

@@ -7,8 +7,8 @@ namespace Invest.Sign.Router.Core.Routing;
 /// <example>
 /// <code>
 /// Route.For("contract", version: 1)
-///     .Stage("legal-review", s => s.Manual(signer: "legal").Timeout(TimeSpan.FromDays(3)))
-///     .Stage("director", s => s.Manual(signer: "director")
+///     .Stage("sign", s => s.Handler&lt;MyStageHandler&gt;(new MySettings("legal")).Timeout(TimeSpan.FromDays(3)))
+///     .Stage("director", s => s.Handler&lt;MyStageHandler&gt;(new MySettings("director"))
 ///         .When(doc => doc.GetDecimal("amount") > 10_000)
 ///         .Timeout(TimeSpan.FromDays(5)))
 ///     .Build();
@@ -104,14 +104,6 @@ public sealed class StageBuilder
 
     internal string Key { get; }
 
-    /// <summary>Подписание сотрудником во внешнем ПО; ПО подписания уведомляет подписанта.</summary>
-    public StageBuilder Manual(string signer) =>
-        Handler<SigningStageHandler>(new SigningStageSettings(SigningKind.Manual, signer));
-
-    /// <summary>Автоматическое подписание во внешнем ПО.</summary>
-    public StageBuilder Automatic(string signer) =>
-        Handler<SigningStageHandler>(new SigningStageSettings(SigningKind.Auto, signer));
-
     /// <summary>
     /// Выполняет этап обработчиком <typeparamref name="THandler"/> с настройками <paramref name="settings"/>.
     /// Обработчик должен быть зарегистрирован в <see cref="IStageHandlerResolver"/>; это проверяется при запуске движка.
@@ -166,11 +158,7 @@ public sealed class StageBuilder
 
         if (_handlerType is null)
         {
-            errors.Add($"Stage '{Key}': handler is not set, call Manual(...), Automatic(...) or Handler<T>(...).");
-        }
-        else if (_settings is SigningStageSettings signing)
-        {
-            Identifier.Validate($"Stage '{Key}': signer", signing.Signer, RouteLimits.MaxSignerLength, errors);
+            errors.Add($"Stage '{Key}': handler is not set, call Handler<T>(...).");
         }
 
         if (_timeout is null)

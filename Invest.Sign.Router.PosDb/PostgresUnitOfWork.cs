@@ -51,12 +51,6 @@ internal sealed class PostgresUnitOfWork(SignDbContext db, IDbContextTransaction
 {
     public IRouteInstanceStore Store { get; } = new PostgresRouteInstanceStore(db);
 
-    /// <summary>
-    /// Шлюза к ПО подписания в этой базе нет: Oracle используется только для чтения входящих документов,
-    /// а этапы, которые вызывают процедуры Oracle в транзакции перехода (<see cref="SigningStageHandler"/>), не поддерживаются.
-    /// </summary>
-    public ISigningGateway Gateway { get; } = new UnavailableSigningGateway();
-
     public Task CommitAsync(CancellationToken cancellationToken) => transaction.CommitAsync(cancellationToken);
 
     public async ValueTask DisposeAsync()
@@ -64,19 +58,5 @@ internal sealed class PostgresUnitOfWork(SignDbContext db, IDbContextTransaction
         // Освобождение транзакции без фиксации выполняет откат.
         await transaction.DisposeAsync();
         await db.DisposeAsync();
-    }
-
-    private sealed class UnavailableSigningGateway : ISigningGateway
-    {
-        public Task CreateRequestAsync(SignRequest request, CancellationToken cancellationToken) => throw Unavailable();
-
-        public Task<SignRequestResult?> GetRequestAsync(string requestId, CancellationToken cancellationToken) =>
-            throw Unavailable();
-
-        public Task CancelRequestAsync(string requestId, CancellationToken cancellationToken) => throw Unavailable();
-
-        private static NotSupportedException Unavailable() =>
-            new("The Postgres state store has no signing gateway: signing requests in the Oracle signing software " +
-                "cannot be part of a Postgres transaction. Use a stage handler that does not need the gateway.");
     }
 }

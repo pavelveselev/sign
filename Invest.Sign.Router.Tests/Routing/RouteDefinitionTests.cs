@@ -1,14 +1,15 @@
 using Invest.Sign.Router.Core.Model;
 using Invest.Sign.Router.Core.Routing;
+using Invest.Sign.Router.Tests.Fakes;
 
 namespace Invest.Sign.Router.Tests.Routing;
 
 public class RouteDefinitionTests
 {
     private static readonly RouteDefinition Route3 = Route.For("contract", 1)
-        .Stage("a", s => s.Manual("x").Timeout(TimeSpan.FromHours(1)))
-        .Stage("b", s => s.Manual("x").When(d => d.GetBoolean("needs-b")).Timeout(TimeSpan.FromHours(1)))
-        .Stage("c", s => s.Manual("x").Timeout(TimeSpan.FromHours(1)))
+        .Stage("a", s => s.Signing("x").Timeout(TimeSpan.FromHours(1)))
+        .Stage("b", s => s.Signing("x").When(d => d.GetBoolean("needs-b")).Timeout(TimeSpan.FromHours(1)))
+        .Stage("c", s => s.Signing("x").Timeout(TimeSpan.FromHours(1)))
         .Build();
 
     private static DocumentContext Doc(string json) => new("doc-1", "contract", json, null);

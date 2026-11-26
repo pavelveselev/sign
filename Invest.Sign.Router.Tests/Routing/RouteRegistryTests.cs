@@ -1,4 +1,5 @@
 using Invest.Sign.Router.Core.Routing;
+using Invest.Sign.Router.Tests.Fakes;
 
 namespace Invest.Sign.Router.Tests.Routing;
 
@@ -6,7 +7,7 @@ public class RouteRegistryTests
 {
     private static RouteDefinition Make(string code, int version, string stageKey = "s") =>
         Route.For(code, version)
-            .Stage(stageKey, s => s.Manual("x").Timeout(TimeSpan.FromHours(1)))
+            .Stage(stageKey, s => s.Signing("x").Timeout(TimeSpan.FromHours(1)))
             .Build();
 
     [Fact]

@@ -9,7 +9,7 @@ namespace Invest.Sign.Router.OracleDb;
 /// Таблицы сервиса не используются: состояние документов хранится в другой базе.
 /// </summary>
 /// <remarks>
-/// Метки времени передаются параметрами <c>TIMESTAMP</c> (а не <c>DATE</c>, как сделал бы Dapper для <see cref="DateTime"/>):
+/// Метки времени передаются параметрами <c>TIMESTAMP</c> (а не <c>DATE</c>):
 /// доли секунды нужны для точного сравнения позиции в ленте.
 /// </remarks>
 public sealed class OracleIncomingDocumentFeed : IIncomingDocumentFeed
@@ -79,4 +79,24 @@ public sealed class OracleIncomingDocumentFeed : IIncomingDocumentFeed
 
         return result;
     }
+}
+
+internal static class P
+{
+    public static OracleParameter Str(string name, string? value) =>
+        new(name, OracleDbType.Varchar2) { Value = (object?)value ?? DBNull.Value };
+
+    public static OracleParameter Int(string name, int? value) =>
+        new(name, OracleDbType.Int32) { Value = (object?)value ?? DBNull.Value };
+
+    /// <summary>Метка времени UTC для сравнения с <c>SYS_EXTRACT_UTC(...)</c>.</summary>
+    public static OracleParameter Utc(string name, DateTimeOffset? value) =>
+        new(name, OracleDbType.TimeStamp) { Value = value is { } v ? v.UtcDateTime : DBNull.Value };
+}
+
+internal static class OracleTime
+{
+    /// <summary>Преобразует значение, прочитанное через <c>SYS_EXTRACT_UTC</c>, в <see cref="DateTimeOffset"/>.</summary>
+    public static DateTimeOffset FromUtc(DateTime value) =>
+        new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 }

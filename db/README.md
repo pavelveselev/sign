@@ -2,11 +2,12 @@
 
 | Folder | Content | Run as |
 |---|---|---|
-| `service/` | DDL of the service schema (`SGN_*` tables) | service schema owner |
-| `contract/` | Specification of the external objects the service uses | — (document) |
-| `stub/` | Stub of the external side: tables, contract views and procedures, grants | external schema owner |
+| `postgres/` | Idempotent script of the Postgres state schema, generated from EF migrations | Postgres DBA |
+| `contract/` | Specification of the external Oracle objects the service uses | — (document) |
+| `stub/` | Stub of the external Oracle side: table, contract view, grant | external schema owner |
 
-The service never changes the schema at startup. Scripts are applied by the Oracle developer.
+The service never changes the schema at startup. In Oracle the service only reads the incoming documents view;
+it has no tables of its own there.
 
 ## Conventions
 
@@ -15,17 +16,14 @@ The service never changes the schema at startup. Scripts are applied by the Orac
 - Run with `WHENEVER SQLERROR EXIT FAILURE` so the first error stops the run.
 - A new change is a new numbered script; applied scripts are never edited.
 
-## Setting up a development database
+## Setting up a development Oracle database
 
 ```
--- 1. as a DBA: create the two schemas
+-- 1. as a DBA: create the external schema and the service account
 CREATE USER sgn_ext     IDENTIFIED BY ... QUOTA UNLIMITED ON users;
-CREATE USER sgn_service IDENTIFIED BY ... QUOTA UNLIMITED ON users;
-GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW, CREATE PROCEDURE, CREATE TRIGGER TO sgn_ext;
-GRANT CREATE SESSION, CREATE TABLE, CREATE SEQUENCE TO sgn_service;  -- identity columns need CREATE SEQUENCE
+CREATE USER sgn_service IDENTIFIED BY ...;
+GRANT CREATE SESSION, CREATE TABLE, CREATE VIEW TO sgn_ext;
+GRANT CREATE SESSION TO sgn_service;
 
--- 2. as sgn_ext:     @stub/001_stub_tables.sql ... @stub/004_stub_grants.sql  (service_schema = SGN_SERVICE)
--- 3. as sgn_service: @service/001_sgn_route_instance.sql ... @service/005_sgn_stage_instance_data.sql
+-- 2. as sgn_ext: @stub/001_stub_tables.sql ... @stub/003_stub_grants.sql  (service_schema = SGN_SERVICE)
 ```
-
-The service schema does not reference the external schema in DDL, so steps 2 and 3 are independent.

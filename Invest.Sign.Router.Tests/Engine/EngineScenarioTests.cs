@@ -44,8 +44,8 @@ public class EngineScenarioTests
         Assert.All(Db.StagesOf(id), s => Assert.Equal(StageState.Done, s.State));
         Assert.Equal(
             [
-                new SignRequest(a.RequestId, "doc-1", SigningKind.Manual, "alice"),
-                new SignRequest(b.RequestId, "doc-1", SigningKind.Auto, "seal"),
+                new SignRequest(a.RequestId, "doc-1", "alice"),
+                new SignRequest(b.RequestId, "doc-1", "seal"),
             ],
             Db.SignRequests.Values.Select(r => r.Request));
     }
@@ -166,7 +166,7 @@ public class EngineScenarioTests
         await _h.StepAdvancedAsync(id);
 
         Assert.Equal(RouteStatus.Failed, Db.Routes[id].Status);
-        Assert.Equal(StatusReasons.SigningError, Db.Routes[id].StatusReason);
+        Assert.Equal(StatusReasons.StageError, Db.Routes[id].StatusReason);
         Assert.Equal(StageState.Failed, Db.Stages[a.Id].State);
         Assert.Equal("certificate expired", Db.Stages[a.Id].Reason);
     }
@@ -357,13 +357,13 @@ public class EngineScenarioTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task S09_retried_start_does_not_create_second_request(bool gatewayTransactional)
+    public async Task S09_retried_start_does_not_create_second_request(bool signingSideTransactional)
     {
-        Db.GatewayTransactional = gatewayTransactional;
+        Db.SigningSideTransactional = signingSideTransactional;
         var id = await _h.StartDocumentAsync("doc-1", "two-stage");
         await _h.StepAdvancedAsync(id);
         var stage = Db.CurrentStage(id);
-        Db.FailOn(Ops.UpdateStage);   // ошибка после create_sign_request в той же транзакции
+        Db.FailOn(Ops.UpdateStage);   // ошибка после создания запроса в той же транзакции
 
         Assert.Equal(StepOutcome.TechnicalFailure, (await _h.StepAsync(id)).Outcome);
         Assert.Equal(StageState.Pending, Db.Stages[stage.Id].State);
@@ -541,7 +541,7 @@ public class EngineScenarioTests
     {
         var id1 = await _h.StartDocumentAsync("doc-1", "two-stage");
         var v2 = Route.For("two-stage", 2)
-            .Stage("only", s => s.Automatic("seal").Timeout(TimeSpan.FromHours(1)))
+            .Stage("only", s => s.Signing("seal").Timeout(TimeSpan.FromHours(1)))
             .Build();
         var engine = _h.CreateEngine(ReplicaA, new RouteRegistry([TwoStage, v2]));
 

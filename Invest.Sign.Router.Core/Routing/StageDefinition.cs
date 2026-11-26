@@ -29,12 +29,6 @@ public sealed class StageDefinition
     /// <summary>Настройки этапа, передаваемые обработчику в <see cref="StageContext.Settings"/>.</summary>
     public object? Settings { get; }
 
-    /// <summary>Вид подписания для этапов подписания во внешнем ПО; иначе null.</summary>
-    public SigningKind? Kind => (Settings as SigningStageSettings)?.Kind;
-
-    /// <summary>Подписант (<c>p_signer</c>) для этапов подписания во внешнем ПО; иначе null.</summary>
-    public string? Signer => (Settings as SigningStageSettings)?.Signer;
-
     /// <summary>
     /// Сколько этап может находиться в <c>REQUESTED</c>, отсчитывая с момента запуска.
     /// Не используется, если обработчик завершает этап сразу.

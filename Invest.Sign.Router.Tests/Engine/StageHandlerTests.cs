@@ -240,22 +240,21 @@ public class StageHandlerTests
     }
 
     [Fact]
-    public async Task Signing_stage_audit_describes_kind_and_signer()
+    public async Task Stage_requested_audit_describes_handler_and_settings()
     {
         var id = await _h.StartDocumentAsync("doc-1", "two-stage");
 
         await _h.EnterAndRequestNextStageAsync(id);
 
         var requested = Db.Audit.Single(a => a.Entry.EventType == AuditEventTypes.StageRequested).Entry.Payload!;
-        Assert.Contains("\"handler\":\"SigningStageHandler\"", requested);
-        Assert.Contains("\"kind\":\"MANUAL\"", requested);
+        Assert.Contains("\"handler\":\"FakeSigningStageHandler\"", requested);
         Assert.Contains("\"signer\":\"alice\"", requested);
     }
 
     [Fact]
     public void Engine_does_not_start_when_a_stage_handler_is_not_registered()
     {
-        var registry = new StageHandlerRegistry(new SigningStageHandler(new FakeUnitOfWorkFactory(Db)));
+        var registry = new StageHandlerRegistry(new FakeSigningStageHandler(Db));
 
         var ex = Assert.Throws<InvalidOperationException>(() => new SigningEngine(
             new FakeUnitOfWorkFactory(Db), _h.Incoming, _h.Files, registry, new RouteRegistry([Custom]), _h.Options, ReplicaA));
@@ -271,17 +270,5 @@ public class StageHandlerTests
         var ex = Assert.Throws<InvalidOperationException>(() => _h.Engine);
 
         Assert.Contains("stage 'x': unsupported settings.", ex.Message);
-    }
-
-    [Fact]
-    public void Signing_handler_rejects_foreign_settings()
-    {
-        var route = Route.For("bad", 1)
-            .Stage("a", s => s.Handler<SigningStageHandler>("not signing settings").Timeout(TimeSpan.FromHours(1)))
-            .Build();
-
-        var ex = Assert.Throws<InvalidOperationException>(() => _h.CreateEngine(ReplicaA, new RouteRegistry([route])));
-
-        Assert.Contains("expected SigningStageSettings, got String", ex.Message);
     }
 }

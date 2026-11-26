@@ -4,7 +4,7 @@ using Invest.Sign.Router.Core.Model;
 namespace Invest.Sign.Router.Tests.Fakes;
 
 /// <summary>
-/// Замена базы данных Oracle в памяти: таблицы сервиса, внешняя сторона подписания и управляемые часы.
+/// База данных в памяти: состояние сервиса, эмуляция внешней системы подписания и управляемые часы.
 /// Единицы работы применяют изменения сразу и отменяют их при откате. Тесты выполняются последовательно, поэтому изоляция
 /// между параллельными единицами работы не моделируется.
 /// </summary>
@@ -26,14 +26,14 @@ public sealed class InMemoryDatabase
     /// <summary>Внешняя сторона: строки представления запросов на подписание по идентификатору запроса.</summary>
     public Dictionary<string, FakeSignRequest> SignRequests { get; } = [];
 
-    /// <summary>Каждый вызов <c>create_sign_request</c>, сохраняется даже при откате транзакции.</summary>
+    /// <summary>Каждый вызов создания запроса, сохраняется даже при откате транзакции.</summary>
     public List<SignRequest> CreateRequestCalls { get; } = [];
 
     /// <summary>
-    /// Если false, изменения шлюза переживают откат, как будто внешняя сторона зафиксировала их сама.
+    /// Если false, изменения внешней системы подписания переживают откат, как будто внешняя сторона зафиксировала их сама.
     /// Используется для проверки того, что движок опирается на идемпотентность, а не только на общую транзакцию.
     /// </summary>
-    public bool GatewayTransactional { get; set; } = true;
+    public bool SigningSideTransactional { get; set; } = true;
 
     /// <summary>Вызывается перед каждой операцией с её именем (см. <see cref="Ops"/>). Может выбросить исключение или изменить состояние.</summary>
     public Action<string>? BeforeOperation { get; set; }

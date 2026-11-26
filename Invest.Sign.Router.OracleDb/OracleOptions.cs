@@ -8,8 +8,7 @@ public sealed partial class OracleOptions
     public const string SectionName = "Oracle";
 
     /// <summary>
-    /// Строка подключения ODP.NET. Сессия должна разрешать таблицы <c>SGN_*</c> без указания схемы,
-    /// т. е. подключаться от имени владельца схемы сервиса.
+    /// Строка подключения ODP.NET. Учётной записи достаточно права <c>SELECT</c> на вьюху входящих документов.
     /// </summary>
     public string ConnectionString { get; set; } = "";
 

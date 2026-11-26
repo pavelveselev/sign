@@ -1,5 +1,5 @@
-using Invest.Sign.Router.Core.Model;
 using Invest.Sign.Router.Core.Routing;
+using Invest.Sign.Router.Tests.Fakes;
 
 namespace Invest.Sign.Router.Tests.Routing;
 
@@ -9,8 +9,8 @@ public class RouteBuilderTests
     public void Builds_route_with_stages_in_declared_order()
     {
         var route = Route.For("contract", version: 2)
-            .Stage("review", s => s.Manual(signer: "legal").Timeout(TimeSpan.FromDays(3)))
-            .Stage("seal", s => s.Automatic(signer: "org-seal").Timeout(TimeSpan.FromHours(1)))
+            .Stage("review", s => s.Signing(signer: "legal").Timeout(TimeSpan.FromDays(3)))
+            .Stage("seal", s => s.Signing(signer: "org-seal").Timeout(TimeSpan.FromHours(1)))
             .Build();
 
         Assert.Equal("contract", route.Code);
@@ -21,16 +21,15 @@ public class RouteBuilderTests
             s =>
             {
                 Assert.Equal("review", s.Key);
-                Assert.Equal(SigningKind.Manual, s.Kind);
-                Assert.Equal("legal", s.Signer);
+                Assert.Equal(typeof(FakeSigningStageHandler), s.HandlerType);
+                Assert.Equal(new FakeSigningSettings("legal"), s.Settings);
                 Assert.Equal(TimeSpan.FromDays(3), s.Timeout);
                 Assert.False(s.IsConditional);
             },
             s =>
             {
                 Assert.Equal("seal", s.Key);
-                Assert.Equal(SigningKind.Auto, s.Kind);
-                Assert.Equal("org-seal", s.Signer);
+                Assert.Equal(new FakeSigningSettings("org-seal"), s.Settings);
                 Assert.Equal(TimeSpan.FromHours(1), s.Timeout);
             });
     }
@@ -39,11 +38,11 @@ public class RouteBuilderTests
     public void Order_of_stage_builder_calls_does_not_matter()
     {
         var route = Route.For("contract", 1)
-            .Stage("director", s => s.Timeout(TimeSpan.FromDays(5)).When(_ => true).Manual("director"))
+            .Stage("director", s => s.Timeout(TimeSpan.FromDays(5)).When(_ => true).Signing("director"))
             .Build();
 
         var stage = Assert.Single(route.Stages);
-        Assert.Equal(SigningKind.Manual, stage.Kind);
+        Assert.Equal(new FakeSigningSettings("director"), stage.Settings);
         Assert.True(stage.IsConditional);
     }
 
@@ -59,8 +58,8 @@ public class RouteBuilderTests
     public void Rejects_duplicate_stage_keys()
     {
         var ex = Assert.Throws<RouteDefinitionException>(() => Route.For("contract", 1)
-            .Stage("review", s => s.Manual("a").Timeout(TimeSpan.FromHours(1)))
-            .Stage("review", s => s.Manual("b").Timeout(TimeSpan.FromHours(1)))
+            .Stage("review", s => s.Signing("a").Timeout(TimeSpan.FromHours(1)))
+            .Stage("review", s => s.Signing("b").Timeout(TimeSpan.FromHours(1)))
             .Build());
 
         Assert.Contains(ex.Errors, e => e.Contains("'review' is used more than once"));
@@ -70,7 +69,7 @@ public class RouteBuilderTests
     public void Rejects_stage_without_timeout()
     {
         var ex = Assert.Throws<RouteDefinitionException>(() => Route.For("contract", 1)
-            .Stage("review", s => s.Manual("legal"))
+            .Stage("review", s => s.Signing("legal"))
             .Build());
 
         Assert.Contains(ex.Errors, e => e.Contains("timeout is not set"));
@@ -82,7 +81,7 @@ public class RouteBuilderTests
     public void Rejects_non_positive_timeout(int seconds)
     {
         var ex = Assert.Throws<RouteDefinitionException>(() => Route.For("contract", 1)
-            .Stage("review", s => s.Manual("legal").Timeout(TimeSpan.FromSeconds(seconds)))
+            .Stage("review", s => s.Signing("legal").Timeout(TimeSpan.FromSeconds(seconds)))
             .Build());
 
         Assert.Contains(ex.Errors, e => e.Contains("timeout must be positive"));
@@ -103,7 +102,7 @@ public class RouteBuilderTests
     {
         var ex = Assert.Throws<RouteDefinitionException>(() => Route.For("contract", 1)
             .Stage("review", s => s
-                .Manual("legal").Automatic("seal")
+                .Signing("legal").Signing("seal")
                 .Timeout(TimeSpan.FromHours(1)).Timeout(TimeSpan.FromHours(2))
                 .When(_ => true).When(_ => false))
             .Build());
@@ -120,20 +119,10 @@ public class RouteBuilderTests
     public void Rejects_invalid_stage_key(string key)
     {
         var ex = Assert.Throws<RouteDefinitionException>(() => Route.For("contract", 1)
-            .Stage(key, s => s.Manual("legal").Timeout(TimeSpan.FromHours(1)))
+            .Stage(key, s => s.Signing("legal").Timeout(TimeSpan.FromHours(1)))
             .Build());
 
         Assert.Contains(ex.Errors, e => e.StartsWith("Stage key"));
-    }
-
-    [Fact]
-    public void Rejects_empty_signer()
-    {
-        var ex = Assert.Throws<RouteDefinitionException>(() => Route.For("contract", 1)
-            .Stage("review", s => s.Manual("").Timeout(TimeSpan.FromHours(1)))
-            .Build());
-
-        Assert.Contains(ex.Errors, e => e.Contains("signer must not be empty"));
     }
 
     [Fact]
@@ -142,7 +131,7 @@ public class RouteBuilderTests
         var tooLong = new string('x', RouteLimits.MaxCodeLength + 1);
 
         var ex = Assert.Throws<RouteDefinitionException>(() => Route.For(tooLong, 1)
-            .Stage("review", s => s.Manual("legal").Timeout(TimeSpan.FromHours(1)))
+            .Stage("review", s => s.Signing("legal").Timeout(TimeSpan.FromHours(1)))
             .Build());
 
         Assert.Contains(ex.Errors, e => e.Contains($"longer than {RouteLimits.MaxCodeLength}"));
@@ -154,7 +143,7 @@ public class RouteBuilderTests
     public void Rejects_invalid_code_or_version(string code, int version)
     {
         Assert.Throws<RouteDefinitionException>(() => Route.For(code, version)
-            .Stage("review", s => s.Manual("legal").Timeout(TimeSpan.FromHours(1)))
+            .Stage("review", s => s.Signing("legal").Timeout(TimeSpan.FromHours(1)))
             .Build());
     }
 
@@ -162,7 +151,7 @@ public class RouteBuilderTests
     public void Reports_all_errors_at_once()
     {
         var ex = Assert.Throws<RouteDefinitionException>(() => Route.For("contract", 0)
-            .Stage("a", s => s.Manual("legal"))
+            .Stage("a", s => s.Signing("legal"))
             .Stage("b", s => s.Timeout(TimeSpan.FromHours(1)))
             .Build());
 
