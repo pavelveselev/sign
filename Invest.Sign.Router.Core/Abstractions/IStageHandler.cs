@@ -5,7 +5,7 @@ namespace Invest.Sign.Router.Core.Abstractions;
 
 /// <summary>
 /// Действие этапа: что этап делает и как узнаёт результат. Этап выбирает обработчик в определении маршрута
-/// (<see cref="StageBuilder.Handler{THandler}"/>); движок отвечает за аренды, переходы состояний, сроки, повторы и аудит.
+/// (<see cref="RouteStage{THandler}"/>); движок отвечает за аренды, переходы состояний, сроки, повторы и аудит.
 /// </summary>
 /// <remarks>
 /// <para>

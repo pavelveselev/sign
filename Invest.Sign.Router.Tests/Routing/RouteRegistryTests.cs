@@ -5,15 +5,13 @@ namespace Invest.Sign.Router.Tests.Routing;
 
 public class RouteRegistryTests
 {
-    private static RouteDefinition Make(string code, int version, string stageKey = "s") =>
-        Route.For(code, version)
-            .Stage(stageKey, s => s.Signing("x").Timeout(TimeSpan.FromHours(1)))
-            .Build();
+    private static RouteVersion V(int number, string stageKey = "s") =>
+        new(number, new SigningStage(stageKey, "x", TimeSpan.FromHours(1)));
 
     [Fact]
-    public void New_documents_get_the_highest_version_regardless_of_registration_order()
+    public void New_documents_get_the_highest_version_regardless_of_declaration_order()
     {
-        var registry = new RouteRegistry([Make("contract", 2), Make("contract", 3), Make("contract", 1)]);
+        var registry = new RouteRegistry([new TestRoute("contract", V(2), V(3), V(1))]);
 
         Assert.Equal(3, registry.FindLatest("contract")?.Version);
     }
@@ -21,7 +19,7 @@ public class RouteRegistryTests
     [Fact]
     public void Started_documents_resolve_their_own_version()
     {
-        var registry = new RouteRegistry([Make("contract", 1, "old"), Make("contract", 2, "new")]);
+        var registry = new RouteRegistry([new TestRoute("contract", V(1, "old"), V(2, "new"))]);
 
         var route = registry.Find("contract", 1);
 
@@ -32,7 +30,7 @@ public class RouteRegistryTests
     [Fact]
     public void Unknown_type_or_version_returns_null()
     {
-        var registry = new RouteRegistry([Make("contract", 1)]);
+        var registry = new RouteRegistry([new TestRoute("contract", V(1))]);
 
         Assert.Null(registry.FindLatest("invoice"));
         Assert.Null(registry.Find("contract", 2));
@@ -42,7 +40,7 @@ public class RouteRegistryTests
     [Fact]
     public void Codes_are_case_sensitive()
     {
-        var registry = new RouteRegistry([Make("contract", 1)]);
+        var registry = new RouteRegistry([new TestRoute("contract", V(1))]);
 
         Assert.Null(registry.FindLatest("Contract"));
     }
@@ -50,7 +48,7 @@ public class RouteRegistryTests
     [Fact]
     public void Versions_of_different_codes_are_independent()
     {
-        var registry = new RouteRegistry([Make("contract", 5), Make("invoice", 1)]);
+        var registry = new RouteRegistry([new TestRoute("contract", V(5)), new TestRoute("invoice", V(1))]);
 
         Assert.Equal(5, registry.FindLatest("contract")?.Version);
         Assert.Equal(1, registry.FindLatest("invoice")?.Version);
@@ -58,11 +56,21 @@ public class RouteRegistryTests
     }
 
     [Fact]
-    public void Rejects_duplicate_code_and_version()
+    public void Rejects_two_classes_for_one_document_type()
+    {
+        var ex = Assert.Throws<RouteDefinitionException>(() => new RouteRegistry(
+            [new TestRoute("contract", V(1)), new TestRoute("contract", V(2)), new TestRoute("invoice", V(1))]));
+
+        Assert.Equal(
+            "Route 'contract' is declared by more than one class: TestRoute, TestRoute.", Assert.Single(ex.Errors));
+    }
+
+    [Fact]
+    public void Rejects_invalid_route()
     {
         var ex = Assert.Throws<RouteDefinitionException>(
-            () => new RouteRegistry([Make("contract", 1, "a"), Make("contract", 1, "b"), Make("invoice", 1)]));
+            () => new RouteRegistry([new TestRoute("contract", V(1), V(1))]));
 
-        Assert.Equal("Route contract@v1 is registered more than once.", Assert.Single(ex.Errors));
+        Assert.Contains(ex.Errors, e => e.Contains("Version 1 is declared more than once"));
     }
 }

@@ -111,10 +111,32 @@ public sealed class HostTests(OracleFixture oracle, PostgresFixture pg) : IClass
         Assert.Contains(message, error.ToString());
     }
 
-    private static readonly RouteDefinition Subscription = Route.For("subscription", 1)
-        .Stage("manual", s => s.CopyFile(targetFolder: "manual").Timeout(TimeSpan.FromDays(1)))
-        .Stage("auto", s => s.Http(path: "subscriptions").Timeout(TimeSpan.FromMinutes(10)))
-        .Build();
+    private static readonly SubscriptionRoute Subscription = new();
+
+    private sealed class SubscriptionRoute : SigningRoute
+    {
+        public override string Code => "subscription";
+
+        public override IReadOnlyList<RouteVersion> Versions { get; } = [new(1, new ManualStage(), new AutoStage())];
+
+        private sealed class ManualStage : CopyFileStage
+        {
+            public override string Key => "manual";
+
+            public override TimeSpan Timeout => TimeSpan.FromDays(1);
+
+            protected override string TargetFolder => "manual";
+        }
+
+        private sealed class AutoStage : HttpStage
+        {
+            public override string Key => "auto";
+
+            public override TimeSpan Timeout => TimeSpan.FromMinutes(10);
+
+            protected override string Path => "subscriptions";
+        }
+    }
 
     [Fact]
     public void Host_with_route_using_unregistered_stage_handler_fails_to_start()
@@ -157,7 +179,7 @@ public sealed class HostTests(OracleFixture oracle, PostgresFixture pg) : IClass
     /// <summary>Хост как в <c>Program</c>: движок и HTTP API на свободном локальном порту.</summary>
     private WebApplication BuildHost(
         Dictionary<string, string?>? overrides = null,
-        IEnumerable<RouteDefinition>? routes = null,
+        IEnumerable<SigningRoute>? routes = null,
         Action<IServiceCollection>? configure = null)
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions

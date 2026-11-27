@@ -10,15 +10,16 @@ namespace Invest.Sign.Router.Routes;
 /// </summary>
 /// <remarks>
 /// <c>document</c> — заглушка для реального <c>doc_type</c> (открытый вопрос 9). Изменение этапов при наличии
-/// документов в работе — новая версия маршрута отдельным классом; старый класс остаётся зарегистрированным.
+/// документов в работе — новая версия в <see cref="Versions"/>; старая версия остаётся.
 /// </remarks>
-public sealed class DocumentRouteV1 : SigningRoute
+public sealed class DocumentRoute : SigningRoute
 {
     public override string Code => "document";
 
-    public override int Version => 1;
-
-    public override IReadOnlyList<RouteStage> Stages { get; } = [new SignStage()];
+    public override IReadOnlyList<RouteVersion> Versions { get; } =
+    [
+        new(1, new SignStage()),
+    ];
 
     /// <summary>Подписание через каталоги; имя файла — атрибут <c>file_name</c>.</summary>
     private sealed class SignStage : FileSigningStage

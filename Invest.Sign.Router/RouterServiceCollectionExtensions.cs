@@ -16,9 +16,9 @@ public static class RouterServiceCollectionExtensions
     /// Регистрирует движок маршрутов и цикл тактов. Состояние документов, история статусов и подписи — в Postgres;
     /// Oracle — только источник новых документов (вьюха входящих). По умолчанию подключён этап подписания через каталоги.
     /// </summary>
-    /// <param name="routes">Определения маршрутов; по умолчанию — <see cref="DefaultRoutes.All"/>.</param>
+    /// <param name="routes">Классы маршрутов, по одному на тип документа; по умолчанию — <see cref="DefaultRoutes.All"/>.</param>
     public static IServiceCollection AddSigningRouter(
-        this IServiceCollection services, IEnumerable<RouteDefinition>? routes = null)
+        this IServiceCollection services, IEnumerable<SigningRoute>? routes = null)
     {
         // Настройки: привязка из конфигурации и проверка при старте, чтобы ошибка конфигурации останавливала запуск,
         // а не всплывала на первом такте.
@@ -31,7 +31,7 @@ public static class RouterServiceCollectionExtensions
         services.AddOptions<HostOptions>()
             .Configure<IOptions<RouterOptions>>((host, router) => host.ShutdownTimeout = router.Value.ShutdownTimeout);
 
-        // Реестр строится сразу: дубликат (код, версия) должен остановить запуск.
+        // Реестр строится сразу: некорректный маршрут или два класса на один тип документа останавливают запуск.
         services.AddSingleton(new RouteRegistry(routes ?? DefaultRoutes.All));
 
         services.AddSingleton(sp => ReplicaIdentity.Create(sp.GetRequiredService<IOptions<RouterOptions>>().Value));
@@ -52,7 +52,7 @@ public static class RouterServiceCollectionExtensions
         // Этапы по умолчанию передают файл результата сами; чтение с общего ресурса подключается AddSignedFiles().
         services.AddSingleton<ISignedFileSource, UnavailableSignedFileSource>();
 
-        // Обработчики этапов регистрируются под своим конкретным типом: этап ссылается на него в Handler<T>().
+        // Обработчики этапов регистрируются под своим конкретным типом: этап ссылается на него через RouteStage<T>.
         // Если маршрут ссылается на незарегистрированный обработчик, движок не создастся и хост не запустится.
         services.AddFileSigningStage();
         services.AddSingleton<IStageHandlerResolver>(sp => new ServiceProviderStageHandlerResolver(sp));
@@ -71,7 +71,7 @@ public static class RouterServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Регистрирует <see cref="FileSigningStageHandler"/> для этапов <c>FileSigning(...)</c>. Настройки — секция
+    /// Регистрирует <see cref="FileSigningStageHandler"/> для этапов <see cref="FileSigningStage"/>. Настройки — секция
     /// <c>FileSigning</c>. Вызывается из <see cref="AddSigningRouter"/>.
     /// </summary>
     private static IServiceCollection AddFileSigningStage(this IServiceCollection services)
@@ -95,7 +95,7 @@ public static class RouterServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Регистрирует <see cref="CopyFileStageHandler"/> для этапов <c>CopyFile(...)</c>. Настройки — секция <c>CopyFile</c>.
+    /// Регистрирует <see cref="CopyFileStageHandler"/> для этапов <see cref="CopyFileStage"/>. Настройки — секция <c>CopyFile</c>.
     /// </summary>
     public static IServiceCollection AddCopyFileStage(this IServiceCollection services)
     {
@@ -105,7 +105,7 @@ public static class RouterServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Регистрирует <see cref="HttpStageHandler"/> для этапов <c>Http(...)</c>. Настройки — секция <c>HttpStage</c>.
+    /// Регистрирует <see cref="HttpStageHandler"/> для этапов <see cref="HttpStage"/>. Настройки — секция <c>HttpStage</c>.
     /// </summary>
     public static IServiceCollection AddHttpStage(this IServiceCollection services)
     {

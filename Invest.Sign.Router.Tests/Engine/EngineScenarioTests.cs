@@ -540,10 +540,8 @@ public class EngineScenarioTests
     public async Task Started_documents_keep_their_version_new_ones_get_latest()
     {
         var id1 = await _h.StartDocumentAsync("doc-1", "two-stage");
-        var v2 = Route.For("two-stage", 2)
-            .Stage("only", s => s.Signing("seal").Timeout(TimeSpan.FromHours(1)))
-            .Build();
-        var engine = _h.CreateEngine(ReplicaA, new RouteRegistry([TwoStage, v2]));
+        var v2 = new RouteVersion(2, new SigningStage("only", "seal", TimeSpan.FromHours(1)));
+        var engine = _h.CreateEngine(ReplicaA, new RouteRegistry([new TestRoute("two-stage", TwoStageV1, v2)]));
 
         _h.Incoming.Add("doc-2", "two-stage");
         await engine.DiscoverAsync(CancellationToken.None);

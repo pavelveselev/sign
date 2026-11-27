@@ -15,9 +15,19 @@ namespace Invest.Sign.Router.IntegrationTests;
 [Collection(PostgresCollection.Name)]
 public sealed class PostgresFileSigningScenarioTests(PostgresFixture db) : IAsyncLifetime
 {
-    private static readonly RouteDefinition DocumentRoute = Route.For("document", 1)
-        .Stage("sign", s => s.FileSigning().Timeout(TimeSpan.FromDays(1)))
-        .Build();
+    private sealed class DocumentRoute : SigningRoute
+    {
+        public override string Code => "document";
+
+        public override IReadOnlyList<RouteVersion> Versions { get; } = [new(1, new SignStage())];
+
+        private sealed class SignStage : FileSigningStage
+        {
+            public override string Key => "sign";
+
+            public override TimeSpan Timeout => TimeSpan.FromDays(1);
+        }
+    }
 
     private readonly string _base = Directory.CreateTempSubdirectory("sgn-pg-").FullName;
     private readonly ListIncomingDocumentSource _incoming = new();
@@ -46,7 +56,7 @@ public sealed class PostgresFileSigningScenarioTests(PostgresFixture db) : IAsyn
             _incoming,
             new NoFiles(),
             new StageHandlerRegistry(new FileSigningStageHandler(_dirs)),
-            new RouteRegistry([DocumentRoute]),
+            new RouteRegistry([new DocumentRoute()]),
             new EngineOptions(),
             "replica-a");
     }

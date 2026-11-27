@@ -6,11 +6,11 @@ namespace Invest.Sign.Router.Tests.Routing;
 
 public class RouteDefinitionTests
 {
-    private static readonly RouteDefinition Route3 = Route.For("contract", 1)
-        .Stage("a", s => s.Signing("x").Timeout(TimeSpan.FromHours(1)))
-        .Stage("b", s => s.Signing("x").When(d => d.GetBoolean("needs-b")).Timeout(TimeSpan.FromHours(1)))
-        .Stage("c", s => s.Signing("x").Timeout(TimeSpan.FromHours(1)))
-        .Build();
+    private static readonly RouteDefinition Route3 = new TestRoute("contract", new RouteVersion(
+        1,
+        new SigningStage("a", "x", TimeSpan.FromHours(1)),
+        new SigningStage("b", "x", TimeSpan.FromHours(1), when: d => d.GetBoolean("needs-b")),
+        new SigningStage("c", "x", TimeSpan.FromHours(1)))).Build().Single();
 
     private static DocumentContext Doc(string json) => new("doc-1", "contract", json, null);
 

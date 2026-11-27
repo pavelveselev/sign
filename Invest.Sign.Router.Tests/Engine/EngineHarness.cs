@@ -13,23 +13,25 @@ public sealed class EngineHarness
     public const string ReplicaB = "replica-b";
 
     /// <summary>Этап подписания "a" (1 день), затем этап подписания "b" (1 час).</summary>
-    public static readonly RouteDefinition TwoStage = Route.For("two-stage", 1)
-        .Stage("a", s => s.Signing("alice").Timeout(TimeSpan.FromDays(1)))
-        .Stage("b", s => s.Signing("seal").Timeout(TimeSpan.FromHours(1)))
-        .Build();
+    public static readonly RouteVersion TwoStageV1 = new(
+        1,
+        new SigningStage("a", "alice", TimeSpan.FromDays(1)),
+        new SigningStage("b", "seal", TimeSpan.FromHours(1)));
+
+    public static readonly SigningRoute TwoStage = new TestRoute("two-stage", TwoStageV1);
 
     /// <summary>В этап "b" входим, только если атрибут <c>needs-b</c> равен true.</summary>
-    public static readonly RouteDefinition Conditional = Route.For("conditional", 1)
-        .Stage("a", s => s.Signing("alice").Timeout(TimeSpan.FromDays(1)))
-        .Stage("b", s => s.Signing("bob").When(d => d.GetBoolean("needs-b")).Timeout(TimeSpan.FromDays(1)))
-        .Stage("c", s => s.Signing("seal").Timeout(TimeSpan.FromHours(1)))
-        .Build();
+    public static readonly SigningRoute Conditional = new TestRoute("conditional", new RouteVersion(
+        1,
+        new SigningStage("a", "alice", TimeSpan.FromDays(1)),
+        new SigningStage("b", "bob", TimeSpan.FromDays(1), when: d => d.GetBoolean("needs-b")),
+        new SigningStage("c", "seal", TimeSpan.FromHours(1))));
 
     /// <summary>Этап "x" выполняет <see cref="ScriptedStageHandler"/> (срок 1 час), затем этап подписания "y".</summary>
-    public static readonly RouteDefinition Custom = Route.For("custom", 1)
-        .Stage("x", s => s.Handler<ScriptedStageHandler>("x-settings").Timeout(TimeSpan.FromHours(1)))
-        .Stage("y", s => s.Signing("bob").Timeout(TimeSpan.FromDays(1)))
-        .Build();
+    public static readonly SigningRoute Custom = new TestRoute("custom", new RouteVersion(
+        1,
+        new ScriptedStage("x", "x-settings", TimeSpan.FromHours(1)),
+        new SigningStage("y", "bob", TimeSpan.FromDays(1))));
 
     private SigningEngine? _engine;
 

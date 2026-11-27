@@ -63,55 +63,82 @@
 
 ## Маршруты
 
-Маршруты описываются в коде через fluent API. Этапы только последовательные; у этапа может быть условие входа
-по атрибутам документа (JSON из колонки `attributes`).
+Маршрут описывается классом: **один класс на тип документа** (наследник `SigningRoute`), все версии маршрута — в нём,
+каждый этап — класс-наследник `RouteStage<THandler>` или готовой базы (`FileSigningStage`, `CopyFileStage`, `HttpStage`).
+Этапы только последовательные; у этапа может быть условие входа по атрибутам документа (JSON из колонки `attributes`).
 
 ```csharp
-public static RouteDefinition DocumentV1 { get; } =
-    Route.For("document", version: 1)
-        .Stage("sign", s => s.FileSigning().Timeout(TimeSpan.FromDays(7)))
-        .Build();
+public sealed class DocumentRoute : SigningRoute
+{
+    public override string Code => "document";   // = doc_type
 
-// Условие входа: этап выполняется, только если оно истинно.
-.Stage("director", s => s.FileSigning()
-    .When(doc => doc.GetDecimal("amount") > 10_000)
-    .Timeout(TimeSpan.FromDays(5)))
+    public override IReadOnlyList<RouteVersion> Versions { get; } =
+    [
+        new(1, new SignStage()),
+        new(2, new SignStage(), new DirectorStage()),
+    ];
+
+    private sealed class SignStage : FileSigningStage
+    {
+        public override string Key => "sign";
+        public override TimeSpan Timeout => TimeSpan.FromDays(7);
+    }
+
+    // Условие входа: этап выполняется, только если оно истинно.
+    private sealed class DirectorStage : FileSigningStage
+    {
+        public override string Key => "director";
+        public override TimeSpan Timeout => TimeSpan.FromDays(5);
+        public override Func<DocumentContext, bool>? Condition => doc => doc.GetDecimal("amount") > 10_000;
+    }
+}
 ```
 
 - `Timeout` — сколько этап может ждать результата в `REQUESTED`, отсчитывается с момента запуска этапа.
-- Экземпляр маршрута запоминает код и версию. **Не редактируйте версию, по которой могли быть запущены документы** —
-  добавьте новую рядом со старой.
+- Экземпляр маршрута запоминает код и версию; новые документы получают наибольшую версию. **Не редактируйте версию,
+  по которой могли быть запущены документы** — добавьте новую в `Versions` рядом со старой.
+- Маршрут проверяется при старте: уникальные версии и ключи этапов, хотя бы один этап, положительный срок, не больше
+  одного класса на тип документа. Ошибка останавливает запуск.
 
-Пока реальные типы документов неизвестны, по умолчанию регистрируется маршрут
-[`DefaultRoutes.DocumentV1`](Invest.Sign.Router/DefaultRoutes.cs). Свои маршруты передаются в
-`services.AddSigningRouter(routes)`.
+Пока реальные типы документов неизвестны, по умолчанию регистрируется
+[`DocumentRoute`](Invest.Sign.Router/Routes/DocumentRoute.cs) (список — [`DefaultRoutes.All`](Invest.Sign.Router/DefaultRoutes.cs)).
+Свои маршруты передаются в `services.AddSigningRouter([new ContractRoute(), ...])`.
 
 ### Действия этапов
 
 Что делает этап, решает его обработчик ([`IStageHandler`](Invest.Sign.Router.Core/Abstractions/IStageHandler.cs)).
-`FileSigning` — подписание через каталоги (`FileSigningStageHandler`, подключён по умолчанию). Другие готовые
-обработчики из `Infrastructure`:
+`FileSigningStage` — подписание через каталоги (`FileSigningStageHandler`, подключён по умолчанию). Другие готовые
+этапы из `Infrastructure`:
 
 ```csharp
-Route.For("subscription", version: 1)
-    .Stage("manual", s => s.CopyFile(targetFolder: "manual").Timeout(TimeSpan.FromDays(1)))
-    .Stage("auto", s => s.Http(path: "subscriptions").Timeout(TimeSpan.FromMinutes(10)))
-    .Build();
+sealed class ManualStage : CopyFileStage
+{
+    public override string Key => "manual";
+    public override TimeSpan Timeout => TimeSpan.FromDays(1);
+    protected override string TargetFolder => "manual";
+}
 
-services.AddSigningRouter(routes)
+sealed class AutoStage : HttpStage
+{
+    public override string Key => "auto";
+    public override TimeSpan Timeout => TimeSpan.FromMinutes(10);
+    protected override string Path => "subscriptions";
+}
+
+services.AddSigningRouter([new SubscriptionRoute()])
     .AddCopyFileStage()   // секция CopyFile
     .AddHttpStage();      // секция HttpStage
 ```
 
-- **`CopyFile`** копирует файл документа (путь — в атрибуте `file_ref` относительно `CopyFile:SourceRoot`) в каталог
-  `CopyFile:TargetRoot/<targetFolder>` под именем `{docId}_{fileName}` и сразу завершает этап. Запись идёт через временный
+- **`CopyFileStage`** копирует файл документа (путь — в атрибуте `file_ref` относительно `CopyFile:SourceRoot`) в каталог
+  `CopyFile:TargetRoot/<TargetFolder>` под именем `{docId}_{fileName}` и сразу завершает этап. Запись идёт через временный
   файл с атомарным переименованием, поэтому повтор безопасен.
-- **`Http`** отправляет `POST <path>` с заголовком `Idempotency-Key: <request_id>` и телом
-  `{ requestId, docId, docType, stageKey, attributes }`, затем опрашивает `GET <path>/<id>` и по истечении срока вызывает
-  `DELETE <path>/<id>`. Ответ: `{ "status": "DONE" | "PENDING" | "REJECTED" | "FAILED", "id", "reason" }`.
+- **`HttpStage`** отправляет `POST <Path>` с заголовком `Idempotency-Key: <request_id>` и телом
+  `{ requestId, docId, docType, stageKey, attributes }`, затем опрашивает `GET <Path>/<id>` и по истечении срока вызывает
+  `DELETE <Path>/<id>`. Ответ: `{ "status": "DONE" | "PENDING" | "REJECTED" | "FAILED", "id", "reason" }`.
   408, 429 и 5xx повторяются, остальные 4xx завершают маршрут с `FAILED` / `STAGE_ERROR`.
 
-Свой обработчик подключается через `s.Handler<MyHandler>(settings)` и регистрируется в DI под своим типом
+Свой обработчик подключается этапом `class MyStage : RouteStage<MyHandler>` (настройки — `Settings`) и регистрируется в DI под своим типом
 (`services.AddSingleton<MyHandler>()`). Как он устроен:
 
 1. `StartAsync` / `CheckAsync` / `CancelAsync` выполняются **вне** транзакции: в них копируют файлы и вызывают HTTP.
@@ -130,7 +157,7 @@ services.AddSigningRouter(routes)
 
 | Проект | Назначение |
 |---|---|
-| `Invest.Sign.Router.Core` | Движок, модель, fluent API маршрутов, абстракции. Не зависит от Oracle и файловой системы |
+| `Invest.Sign.Router.Core` | Движок, модель, классы маршрутов, абстракции. Не зависит от Oracle и файловой системы |
 | `Invest.Sign.Router.PosDb` | База состояния на Postgres (EF Core code first): документы, история статусов, подписи; unit of work, водяной знак обнаружения, чтение истории |
 | `Invest.Sign.Router.OracleDb` | Чтение вьюхи входящих документов (`OracleIncomingDocumentFeed`) |
 | `Invest.Sign.Router.Infrastructure` | Обработчики этапов (подписание через каталоги, копирование файла, HTTP), чтение файлов с общего ресурса |

@@ -1,18 +1,10 @@
 using Invest.Sign.Router.Core.Abstractions;
 using Invest.Sign.Router.Core.Model;
-using Invest.Sign.Router.Core.Routing;
 
 namespace Invest.Sign.Router.Tests.Fakes;
 
 /// <summary>Настройки этапа <see cref="FakeSigningStageHandler"/>.</summary>
 public sealed record FakeSigningSettings(string Signer);
-
-public static class FakeSigningStageBuilderExtensions
-{
-    /// <summary>Этап подписания во внешней системе, которую эмулирует <see cref="InMemoryDatabase"/>.</summary>
-    public static StageBuilder Signing(this StageBuilder stage, string signer) =>
-        stage.Handler<FakeSigningStageHandler>(new FakeSigningSettings(signer));
-}
 
 /// <summary>
 /// Типичный обработчик, работающий с внешней системой через запросы: запрос создаётся в транзакции перехода
