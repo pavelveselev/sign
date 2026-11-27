@@ -109,14 +109,28 @@ public sealed class StageBuilder
     /// Обработчик должен быть зарегистрирован в <see cref="IStageHandlerResolver"/>; это проверяется при запуске движка.
     /// </summary>
     public StageBuilder Handler<THandler>(object? settings = null)
-        where THandler : IStageHandler
+        where THandler : IStageHandler =>
+        SetHandler(typeof(THandler), settings);
+
+    /// <summary>Нетипизированный вариант <see cref="Handler{THandler}"/> для маршрутов-классов.</summary>
+    internal StageBuilder Handler(Type handlerType, object? settings)
+    {
+        if (!typeof(IStageHandler).IsAssignableFrom(handlerType))
+        {
+            _errors.Add($"Stage '{Key}': handler type {handlerType.Name} does not implement {nameof(IStageHandler)}.");
+        }
+
+        return SetHandler(handlerType, settings);
+    }
+
+    private StageBuilder SetHandler(Type handlerType, object? settings)
     {
         if (_handlerType is not null)
         {
             _errors.Add($"Stage '{Key}': handler is set more than once.");
         }
 
-        _handlerType = typeof(THandler);
+        _handlerType = handlerType;
         _settings = settings;
         return this;
     }
