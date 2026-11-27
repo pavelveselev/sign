@@ -10,17 +10,25 @@ namespace Invest.Sign.Router.PosDb;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Захват, ограждение аренды и создание экземпляра — явный SQL: условия <c>locked_by = :me</c> и
-/// <c>ON CONFLICT DO NOTHING</c> должны быть видны. <c>ON CONFLICT</c> вместо перехвата нарушения уникальности
-/// нужен потому, что в Postgres ошибка оператора прерывает всю транзакцию.
+/// Захват, ограждение аренды и переходы — <c>ExecuteUpdate</c> с условием в <c>Where</c>
+/// (<c>locked_by = owner</c>, свободная аренда); результат определяется числом затронутых строк.
 /// </para>
 /// <para>
-/// Время — всегда время базы (<c>clock_timestamp()</c>). Метки времени пишутся в UTC: Npgsql не принимает
-/// <see cref="DateTimeOffset"/> с ненулевым смещением для <c>timestamptz</c>.
+/// Явный SQL остался в двух местах. Создание экземпляра — <c>INSERT … ON CONFLICT DO NOTHING RETURNING</c>,
+/// которого нет в EF; перехват нарушения уникальности не годится, потому что в Postgres ошибка оператора
+/// прерывает всю транзакцию. Время базы — <c>SELECT clock_timestamp()</c>: в EF нет запроса без таблицы.
+/// </para>
+/// <para>
+/// Время — всегда время базы (<see cref="SignDbContext.ClockTimestamp"/>, а не <c>now()</c>). Метки времени
+/// пишутся в UTC: Npgsql не принимает <see cref="DateTimeOffset"/> с ненулевым смещением для <c>timestamptz</c>.
 /// </para>
 /// </remarks>
 internal sealed class PostgresRouteInstanceStore(SignDbContext db) : IRouteInstanceStore
 {
+    // Константы, а не параметры: так они попадают в SQL литералами.
+    private const string Active = "ACTIVE";
+    private const string Pending = "PENDING";
+
     public async Task<DateTimeOffset> GetNowAsync(CancellationToken cancellationToken) =>
         (await db.Database
             .SqlQuery<DateTimeOffset>($"SELECT clock_timestamp() AS \"Value\"")
@@ -45,25 +53,25 @@ internal sealed class PostgresRouteInstanceStore(SignDbContext db) : IRouteInsta
     }
 
     public async Task<IReadOnlyList<long>> FindCandidatesAsync(int limit, CancellationToken cancellationToken) =>
-        await db.Database.SqlQuery<long>($"""
-            SELECT id AS "Value"
-              FROM sign_document
-             WHERE status = 'ACTIVE'
-               AND next_attempt_at <= clock_timestamp()
-               AND (locked_until IS NULL OR locked_until < clock_timestamp())
-             ORDER BY next_attempt_at, id
-             LIMIT {limit}
-            """).ToListAsync(cancellationToken);
+        await db.Documents
+            .Where(d => d.Status == Active
+                && d.NextAttemptAt <= SignDbContext.ClockTimestamp()
+                && (d.LockedUntil == null || d.LockedUntil < SignDbContext.ClockTimestamp()))
+            .OrderBy(d => d.NextAttemptAt).ThenBy(d => d.Id)
+            .Select(d => d.Id)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
 
     public async Task<bool> TryAcquireAsync(long routeId, string owner, TimeSpan lease, CancellationToken cancellationToken)
     {
-        var rows = await db.Database.ExecuteSqlAsync($"""
-            UPDATE sign_document
-               SET locked_by = {owner}, locked_until = clock_timestamp() + {lease}
-             WHERE id = {routeId}
-               AND status = 'ACTIVE'
-               AND (locked_until IS NULL OR locked_until < clock_timestamp())
-            """, cancellationToken);
+        var rows = await db.Documents
+            .Where(d => d.Id == routeId
+                && d.Status == Active
+                && (d.LockedUntil == null || d.LockedUntil < SignDbContext.ClockTimestamp()))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(d => d.LockedBy, owner)
+                .SetProperty(d => d.LockedUntil, d => SignDbContext.ClockTimestamp() + lease),
+                cancellationToken);
         return rows == 1;
     }
 
@@ -81,19 +89,20 @@ internal sealed class PostgresRouteInstanceStore(SignDbContext db) : IRouteInsta
 
     public async Task UpdateAndReleaseAsync(RouteInstance route, string owner, CancellationToken cancellationToken)
     {
-        var rows = await db.Database.ExecuteSqlAsync($"""
-            UPDATE sign_document
-               SET status = {route.Status.ToCode()},
-                   status_reason = {route.StatusReason},
-                   current_stage_id = {route.CurrentStageId},
-                   attempts = {route.Attempts},
-                   next_attempt_at = {Utc(route.NextAttemptAt)},
-                   locked_by = NULL,
-                   locked_until = NULL,
-                   updated_at = clock_timestamp()
-             WHERE id = {route.Id}
-               AND locked_by = {owner}
-            """, cancellationToken);
+        var status = route.Status.ToCode();
+        var nextAttemptAt = Utc(route.NextAttemptAt);
+        var rows = await db.Documents
+            .Where(d => d.Id == route.Id && d.LockedBy == owner)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(d => d.Status, status)
+                .SetProperty(d => d.StatusReason, route.StatusReason)
+                .SetProperty(d => d.CurrentStageId, route.CurrentStageId)
+                .SetProperty(d => d.Attempts, route.Attempts)
+                .SetProperty(d => d.NextAttemptAt, nextAttemptAt)
+                .SetProperty(d => d.LockedBy, (string?)null)
+                .SetProperty(d => d.LockedUntil, (DateTimeOffset?)null)
+                .SetProperty(d => d.UpdatedAt, d => SignDbContext.ClockTimestamp()),
+                cancellationToken);
 
         if (rows == 0)
         {
@@ -104,40 +113,46 @@ internal sealed class PostgresRouteInstanceStore(SignDbContext db) : IRouteInsta
     public async Task<long> CreateStageAsync(NewStageInstance stage, CancellationToken cancellationToken)
     {
         // Этап занимает место предыдущего в строке документа; предыдущий остаётся в истории.
-        var ids = await db.Database.SqlQuery<long>($"""
-            UPDATE sign_document
-               SET current_stage_id = nextval('sign_stage_id_seq'),
-                   stage_key = {stage.StageKey},
-                   stage_state = 'PENDING',
-                   request_id = {stage.RequestId},
-                   stage_requested_at = NULL,
-                   stage_deadline_at = NULL,
-                   stage_finished_at = NULL,
-                   stage_reason = NULL,
-                   stage_data = NULL,
-                   updated_at = clock_timestamp()
-             WHERE id = {stage.RouteInstanceId}
-            RETURNING current_stage_id AS "Value"
-            """).ToListAsync(cancellationToken);
+        var document = db.Documents.Where(d => d.Id == stage.RouteInstanceId);
+        var rows = await document.ExecuteUpdateAsync(s => s
+            .SetProperty(d => d.CurrentStageId, d => SignDbContext.NextVal(SignDbContext.StageIdSequence))
+            .SetProperty(d => d.StageKey, stage.StageKey)
+            .SetProperty(d => d.StageState, Pending)
+            .SetProperty(d => d.RequestId, stage.RequestId)
+            .SetProperty(d => d.StageRequestedAt, (DateTimeOffset?)null)
+            .SetProperty(d => d.StageDeadlineAt, (DateTimeOffset?)null)
+            .SetProperty(d => d.StageFinishedAt, (DateTimeOffset?)null)
+            .SetProperty(d => d.StageReason, (string?)null)
+            .SetProperty(d => d.StageData, (string?)null)
+            .SetProperty(d => d.UpdatedAt, d => SignDbContext.ClockTimestamp()),
+            cancellationToken);
 
-        return ids.Count == 1
-            ? ids[0]
-            : throw new InvalidOperationException($"Route instance {stage.RouteInstanceId} is not found.");
+        if (rows == 0)
+        {
+            throw new InvalidOperationException($"Route instance {stage.RouteInstanceId} is not found.");
+        }
+
+        // Строка заблокирована обновлением до конца транзакции: читается только что присвоенный id.
+        return await document.Select(d => d.CurrentStageId!.Value).SingleAsync(cancellationToken);
     }
 
     public async Task UpdateStageAsync(StageInstance stage, CancellationToken cancellationToken)
     {
-        var rows = await db.Database.ExecuteSqlAsync($"""
-            UPDATE sign_document
-               SET stage_state = {stage.State.ToCode()},
-                   stage_requested_at = {Utc(stage.RequestedAt)},
-                   stage_deadline_at = {Utc(stage.DeadlineAt)},
-                   stage_finished_at = {Utc(stage.FinishedAt)},
-                   stage_reason = {stage.Reason},
-                   stage_data = {stage.Data},
-                   updated_at = clock_timestamp()
-             WHERE current_stage_id = {stage.Id}
-            """, cancellationToken);
+        var state = stage.State.ToCode();
+        var requestedAt = Utc(stage.RequestedAt);
+        var deadlineAt = Utc(stage.DeadlineAt);
+        var finishedAt = Utc(stage.FinishedAt);
+        var rows = await db.Documents
+            .Where(d => d.CurrentStageId == stage.Id)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(d => d.StageState, state)
+                .SetProperty(d => d.StageRequestedAt, requestedAt)
+                .SetProperty(d => d.StageDeadlineAt, deadlineAt)
+                .SetProperty(d => d.StageFinishedAt, finishedAt)
+                .SetProperty(d => d.StageReason, stage.Reason)
+                .SetProperty(d => d.StageData, stage.Data)
+                .SetProperty(d => d.UpdatedAt, d => SignDbContext.ClockTimestamp()),
+                cancellationToken);
 
         if (rows == 0)
         {

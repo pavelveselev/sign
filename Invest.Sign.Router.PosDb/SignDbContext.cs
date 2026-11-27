@@ -14,6 +14,17 @@ public sealed class SignDbContext(DbContextOptions<SignDbContext> options) : DbC
     /// <summary>Время базы. <c>clock_timestamp()</c>, а не <c>now()</c>: последнее — время начала транзакции.</summary>
     internal const string DbNow = "clock_timestamp()";
 
+    /// <summary><c>clock_timestamp()</c> в LINQ-запросах; вне запроса не вызывается.</summary>
+    public static DateTimeOffset ClockTimestamp() =>
+        throw new InvalidOperationException($"{nameof(ClockTimestamp)} is translated to SQL and cannot be called directly.");
+
+    /// <summary>
+    /// <c>nextval('<paramref name="sequence"/>')</c> в LINQ-запросах; вне запроса не вызывается.
+    /// Имя последовательности должно быть константой, чтобы попасть в SQL литералом.
+    /// </summary>
+    public static long NextVal(string sequence) =>
+        throw new InvalidOperationException($"{nameof(NextVal)} is translated to SQL and cannot be called directly.");
+
     public DbSet<DocumentEntity> Documents => Set<DocumentEntity>();
 
     public DbSet<DocumentStatusHistoryEntity> StatusHistory => Set<DocumentStatusHistoryEntity>();
@@ -23,6 +34,9 @@ public sealed class SignDbContext(DbContextOptions<SignDbContext> options) : DbC
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasSequence<long>(StageIdSequence);
+
+        modelBuilder.HasDbFunction(() => ClockTimestamp()).HasName("clock_timestamp").IsBuiltIn();
+        modelBuilder.HasDbFunction(() => NextVal(default!)).HasName("nextval").IsBuiltIn();
 
         modelBuilder.Entity<DocumentEntity>(e =>
         {
